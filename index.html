@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IO Solver · Investigación de Operaciones</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="launcher" class="launcher-shell">
+  <section class="launcher-hero">
+    <div>
+      <p class="eyebrow">Investigación de Operaciones</p>
+      <h1>IO Solver</h1>
+      <p class="launcher-subtitle">Herramientas educativas para resolver y comprender problemas de Investigación de Operaciones.</p>
+    </div>
+    <div class="theme-tools launcher-theme" aria-label="Apariencia">
+      <label class="compact-control"><span>Tema</span><select id="theme-select" aria-label="Tema de la interfaz"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></label>
+      <label class="compact-control"><span>Color</span><select id="accent-select" aria-label="Color de acento"><option value="blue">Azul</option><option value="teal">Turquesa</option><option value="violet">Violeta</option></select></label>
+    </div>
+  </section>
+  <section class="launcher-grid">
+    <button class="module-card" data-module="simplex" type="button">
+      <span class="module-number">01</span>
+      <span class="module-icon">∑</span>
+      <span class="module-card-title">Simplex</span>
+      <span class="module-card-text">Formula modelos de programación lineal, resuelve con Simplex, muestra el procedimiento paso a paso y permite visualizar el método gráfico cuando aplica.</span>
+      <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </button>
+    <button class="module-card" data-module="pert" type="button">
+      <span class="module-number">02</span>
+      <span class="module-icon">◌</span>
+      <span class="module-card-title">PERT / CPM</span>
+      <span class="module-card-text">Organiza actividades de un proyecto, calcula tiempos tempranos y tardíos, holguras, duración total y ruta crítica.</span>
+      <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </button>
+  </section>
+  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 4.0</footer>
+</main>
+
+<main id="simplex-module" class="app-shell hidden">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Investigación de Operaciones</p>
+        <button class="back-button" data-back-launcher type="button" aria-label="Volver al inicio" title="Volver al inicio">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+        </button>
+        <h1>Simplex</h1>
+        <p class="subtitle">Construye el modelo, reproduce el procedimiento paso a paso y compara el resultado con el método gráfico cuando sea posible. Pensado para estudiar y automatizar el procedimiento de clase.</p>
+      </div>
+      <div class="hero-tools"><div class="badge">Módulo de Programación Lineal</div></div>
+    </header>
+
+    <section class="quick-guide panel">
+      <div class="quick-guide-head">
+        <div>
+          <p class="eyebrow">Referencia de clase</p>
+          <h2>Ruta rápida del Método Simplex</h2>
+          <p>La interfaz sigue la secuencia presentada en el material de la maestra: forma estándar → tablero inicial → variable entrante → razón mínima → pivote → reducción gaussiana → criterio de optimalidad.</p>
+        </div>
+        <span class="source-pill">Programación lineal</span>
+      </div>
+      <div class="guide-steps">
+        <div><strong>01</strong><span>Convertir desigualdades en igualdades con holguras/excesos.</span></div>
+        <div><strong>02</strong><span>Igualar la función objetivo a cero y formar el tablero.</span></div>
+        <div><strong>03</strong><span>Elegir la columna pivote según la fila de Z.</span></div>
+        <div><strong>04</strong><span>Aplicar la prueba de razón positiva y elegir la fila pivote.</span></div>
+        <div><strong>05</strong><span>Hacer 1 el pivote y ceros en el resto de la columna.</span></div>
+        <div><strong>06</strong><span>Repetir hasta que la fila objetivo cumpla el criterio de optimalidad.</span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title-row">
+        <div>
+          <h2>1. Configuración del problema</h2>
+          <p>Elige el objetivo, el dominio de las variables y el tipo de cada restricción.</p>
+        </div>
+      </div>
+
+      <form id="problem-form" novalidate>
+        <div class="control-grid">
+          <label>
+            Tipo de objetivo
+            <select id="objective-type">
+              <option value="max">Maximización</option>
+              <option value="min">Minimización</option>
+            </select>
+          </label>
+          <label>
+            Variables de decisión
+            <input id="variable-count" type="number" min="1" max="8" step="1" value="2" inputmode="numeric">
+          </label>
+          <label>
+            Restricciones
+            <input id="constraint-count" type="number" min="1" max="8" step="1" value="3" inputmode="numeric">
+          </label>
+        </div>
+
+        <label class="switch-row" for="nonnegative">
+          <input id="nonnegative" type="checkbox" checked><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>No negatividad</strong><small>Marcada: X ≥ 0. Desmarcada: las variables de decisión son libres y se transforman como X = X⁺ − X⁻.</small></span>
+        </label>
+
+        <div id="model-editor" class="model-editor"></div>
+
+        <div class="actions">
+          <button class="btn secondary btn-with-icon" id="example-btn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 13.8 9.2 20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"/></svg><span>Cargar ejemplo</span></button>
+          <button class="btn primary btn-with-icon" id="solve-btn" type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>Resolver</span></button>
+        </div>
+        <p id="input-message" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section class="panel import-panel">
+      <div class="section-title-row">
+        <div>
+          <h2>2. Importar ejercicios desde PDF o texto</h2>
+          <p>Pega un ejercicio o carga un PDF con texto. El programa detecta bloques, intenta leer ecuaciones explícitas y, cuando no existen, prueba una interpretación semántica del enunciado para proponerte un modelo revisable. Esta versión incluye perfiles para los ejercicios de tu Problemario y un diagnóstico de posibles problemas de factibilidad.</p>
+        </div>
+      </div>
+      <div class="import-grid">
+        <div class="import-card">
+          <div class="import-kicker">PDF</div>
+          <label class="file-drop" for="pdf-input">
+            <input id="pdf-input" type="file" accept="application/pdf">
+            <strong>Seleccionar PDF</strong>
+            <small>La lectura funciona con PDFs que contienen texto seleccionable.</small>
+          </label>
+          <div id="pdf-status" class="message" aria-live="polite"></div>
+        </div>
+        <div class="import-card">
+          <div class="import-kicker">Texto</div>
+          <textarea id="problem-text" rows="8" placeholder="Ejemplo:
+Ejercicio 1
+Una empresa ...
+Maximizar Z = 300 X1 + 150 X2
+4 X1 + 2 X2 <= 40
+2 X1 + X2 <= 18"></textarea>
+          <button class="btn secondary btn-with-icon" id="analyze-text-btn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>Analizar</span></button>
+        </div>
+      </div>
+      <div id="pdf-results" class="import-results hidden"></div>
+      <p class="import-note">Nota: la interpretación de lenguaje natural es heurística. El programa siempre muestra el modelo detectado para que lo revises antes de resolver; no sustituye la revisión humana.</p>
+    </section>
+
+    <section id="result-section" class="results hidden">
+      <div class="result-head panel">
+        <div>
+          <p class="eyebrow">Resultado</p>
+          <h2 id="result-status">—</h2>
+          <p id="result-summary" class="muted">—</p>
+          <div id="method-badge" class="method-badge hidden"></div>
+        </div>
+        <div id="solution-cards" class="solution-cards"></div>
+      </div>
+
+      <section id="graph-section" class="panel hidden">
+        <div class="section-title-row">
+          <div>
+            <h2>Método gráfico (cuando es posible)</h2>
+            <p>Vista opcional para modelos de 2 variables con no negatividad. La recta de Z puede moverse para visualizar el criterio geométrico.</p>
+          </div>
+        </div>
+        <label class="learn-toggle" for="graph-enabled">
+          <input id="graph-enabled" type="checkbox" checked><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>Activar método gráfico</strong><small>Marca el óptimo encontrado por Simplex y muestra la región factible.</small></span>
+        </label>
+        <div id="graph-controls" class="graph-controls hidden">
+          <label><span>Valor de Z</span><input id="graph-z-slider" type="range" min="-100" max="100" step="0.5" value="0"><output id="graph-z-value">Z = 0</output></label>
+        </div>
+        <div id="graph-output"></div>
+      </section>
+
+      <div class="panel">
+        <div class="section-title-row">
+          <div>
+            <h2>3. Proceso de resolución</h2>
+            <p>Se conserva cada tableau y ahora también se puede seguir visualmente la secuencia: elección → pivote → normalización → eliminación → nueva tabla.</p>
+          </div>
+        </div>
+        <label class="learn-toggle" for="learning-mode">
+          <input id="learning-mode" type="checkbox" checked><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>Modo aprendizaje</strong><small>Mostrar las operaciones de fila y el cálculo que lleva de una tabla a la siguiente.</small></span>
+        </label>
+        <div id="process-output"></div>
+      </div>
+    </section>
+    <footer class="app-footer">
+      <span>IO Solver · módulo Simplex</span>
+      <span>Las interpretaciones automáticas siempre deben revisarse.</span>
+    </footer>
+  </main>
+
+  <main id="pert-module" class="app-shell hidden">
+  <header class="hero module-hero">
+    <div>
+      <button class="back-button" data-back-launcher type="button" aria-label="Volver al inicio" title="Volver al inicio">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+        </button>
+      <p class="eyebrow">Investigación de Operaciones · Módulo 2</p>
+      <h1>PERT / CPM</h1>
+      <p class="subtitle">Programa proyectos mediante redes de actividades, calcula la ruta crítica y, cuando existe incertidumbre, estima la duración esperada con PERT.</p>
+    </div>
+    <div class="hero-tools"><div class="badge">Programación de proyectos</div></div>
+  </header>
+
+  <section class="quick-guide panel">
+    <div class="quick-guide-head">
+      <div>
+        <p class="eyebrow">Referencia rápida</p>
+        <h2>De las actividades a la ruta crítica</h2>
+        <p>Define las actividades y sus precedencias. El sistema construye la red, calcula los tiempos y señala qué actividades no tienen margen de retraso.</p>
+      </div>
+      <span class="source-pill">CPM + PERT</span>
+    </div>
+    <div class="guide-steps">
+      <div><strong>01</strong><span>Definir actividades y precedencias.</span></div>
+      <div><strong>02</strong><span>Asignar duración o estimaciones O, M y P.</span></div>
+      <div><strong>03</strong><span>Calcular tiempos tempranos.</span></div>
+      <div><strong>04</strong><span>Calcular tiempos tardíos y holguras.</span></div>
+      <div><strong>05</strong><span>Identificar la ruta crítica.</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title-row">
+      <div><h2>1. Actividades del proyecto</h2><p>Usa una actividad por fila. Las predecesoras se separan con comas; usa “—” si no tiene.</p></div>
+    </div>
+    <div class="pert-toolbar">
+      <div class="project-name-wrap">
+        <label for="pert-project-name">Proyecto</label>
+        <input id="pert-project-name" class="project-name-input" type="text" maxlength="80" value="Mi proyecto PERT / CPM" placeholder="Nombre del proyecto">
+      </div>
+      <div class="pert-toggle-group">
+        <label class="learn-toggle" for="pert-mode">
+          <input id="pert-mode" type="checkbox"><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>Modo PERT</strong><small>Usa tres estimaciones y calcula el tiempo esperado de cada actividad.</small></span>
+        </label>
+        <label class="learn-toggle" for="pert-learning-mode">
+          <input id="pert-learning-mode" type="checkbox"><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>Modo aprendizaje</strong><small>Muestra cómo se obtienen los tiempos y las holguras paso a paso.</small></span>
+        </label>
+      </div>
+      <div class="project-file-actions">
+        <button class="icon-btn glass-action" id="pert-new-btn" type="button" aria-label="Nuevo proyecto" title="Nuevo proyecto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="icon-btn glass-action" id="pert-save-btn" type="button" aria-label="Guardar proyecto" title="Guardar proyecto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5zM8 4v6h8V4M8 20v-6h8v6"/></svg></button>
+        <button class="icon-btn glass-action" id="pert-load-btn" type="button" aria-label="Abrir proyecto" title="Abrir proyecto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6l2 2h8v10H4zM4 10h16"/></svg></button>
+        <input id="pert-file-input" type="file" accept="application/json,.json" hidden>
+        <button class="icon-btn glass-action" id="pert-example-btn" type="button" aria-label="Cargar ejemplo" title="Cargar ejemplo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 13.8 9.2 20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"/></svg></button>
+      </div>
+    </div>
+    <div class="table-wrap pert-input-wrap">
+      <table class="pert-input-table">
+        <thead><tr><th>Actividad</th><th>Predecesoras</th><th>Duración</th><th class="pert-only hidden">Optimista (O)</th><th class="pert-only hidden">Más probable (M)</th><th class="pert-only hidden">Pesimista (P)</th><th></th></tr></thead>
+        <tbody id="pert-activity-body"></tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <button class="btn secondary btn-with-icon" id="pert-add-btn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Agregar</span></button>
+      <button class="btn primary btn-with-icon" id="pert-solve-btn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>Calcular</span></button>
+    </div>
+    <p id="pert-message" class="message" aria-live="polite"></p>
+  </section>
+
+  <section id="pert-result" class="results hidden">
+    <div class="result-head panel">
+      <div><p class="eyebrow">Resultado</p><h2 id="pert-result-status">—</h2><p id="pert-result-summary" class="muted">—</p></div>
+      <div id="pert-solution-cards" class="solution-cards"></div>
+    </div>
+    <section class="panel">
+      <div class="section-title-row"><div><h2>2. Red del proyecto</h2><p>Las actividades críticas aparecen resaltadas y determinan la duración calculada del proyecto.</p></div><button class="icon-btn glass-action result-action" id="pert-export-report-btn" type="button" aria-label="Imprimir o guardar PDF" title="Imprimir / Guardar PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V4h12v5M6 18H4V10h16v8h-2M7 14h10v6H7z"/></svg></button></div>
+      <div id="pert-network-output"></div>
+    </section>
+    <section class="panel">
+      <div class="section-title-row"><div><h2>3. Cronograma de Gantt</h2><p>Vista temporal de las actividades según sus inicios y finales tempranos. Las actividades críticas se resaltan.</p></div></div>
+      <div id="pert-gantt-output"></div>
+    </section>
+    <section class="panel">
+      <div class="section-title-row"><div><h2>4. Tiempos y holguras</h2><p>ES = inicio temprano · EF = fin temprano · LS = inicio tardío · LF = fin tardío.</p></div></div>
+      <div id="pert-table-output"></div>
+    </section>
+    <section id="pert-learning-section" class="panel hidden">
+      <div class="section-title-row"><div><h2>5. Procedimiento paso a paso</h2><p>El recorrido hacia adelante obtiene los tiempos tempranos; el recorrido hacia atrás obtiene los tiempos tardíos y después se calcula la holgura.</p></div></div>
+      <div id="pert-learning-output"></div>
+    </section>
+    <section id="pert-formula-section" class="panel hidden">
+      <div class="section-title-row"><div><h2>6. Cálculo PERT</h2><p>El tiempo esperado se obtiene con la media ponderada de las tres estimaciones.</p></div></div>
+      <div id="pert-formula-output"></div>
+    </section>
+    <section id="pert-advanced-section" class="panel hidden">
+      <div class="section-title-row"><div><h2>7. Análisis PERT avanzado</h2><p>Calcula la variabilidad de la ruta crítica y estima la probabilidad de terminar antes de una fecha objetivo.</p></div><span class="source-pill">PERT estadístico</span></div>
+      <div id="pert-advanced-output"></div>
+    </section>
+  </section>
+</main>
+
+<script src="simplex.js"></script>
+  <script src="pert.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
