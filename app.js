@@ -28,7 +28,7 @@
     let savedTheme = 'system', savedAccent = 'blue';
     try { savedTheme = localStorage.getItem('io-solver-theme') || 'system'; savedAccent = localStorage.getItem('io-solver-accent') || 'blue'; } catch (_) {}
     theme.value = ['system','light','dark'].includes(savedTheme) ? savedTheme : 'system';
-    accent.value = ['blue','teal','violet'].includes(savedAccent) ? savedAccent : 'blue';
+    accent.value = ['blue','teal','violet','pink','magenta','indigo','green'].includes(savedAccent) ? savedAccent : 'blue';
     const apply = () => {
       if (theme.value === 'system') root.removeAttribute('data-theme');
       else root.setAttribute('data-theme', theme.value);

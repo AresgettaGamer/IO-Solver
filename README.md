@@ -1,12 +1,12 @@
-# IO Solver v4.0
+# IO Solver v5.0
 
 Herramienta educativa de **Investigación de Operaciones** para navegador, organizada en dos módulos independientes: **Simplex** y **PERT / CPM**.
 
 El módulo **Simplex** es el componente principal del proyecto y concentra la resolución de programación lineal, el procedimiento paso a paso y las herramientas de formulación/importación. **PERT / CPM** es un módulo complementario para ampliar la demostración durante la exposición.
 
-## v4.0 — cierre de la línea Simplex
+## v5.0 — promoción de la línea Simplex
 
-La versión 4.0 consolida como versión pública estable el trabajo realizado durante la línea 3.x. El objetivo de esta promoción es cerrar el módulo **Simplex** antes de incorporar los siguientes bloques de Investigación de Operaciones.
+La versión 5.0 toma la línea v4.2 como base para cerrar los hallazgos de la ronda de estrés. Corrige la última fuga de la condición de no negatividad: `X₁, X₂ ≥ 0` se conserva como dominio y nunca se agrega como restricción estructural. Además, los modelos con RHS negativo pueden importarse con una advertencia no bloqueante para comprobar la factibilidad desde Resolver, y las funciones objetivo nulas o restricciones de coeficientes cero se tratan como casos matemáticos diagnosticables en lugar de bloquear automáticamente la ejecución.
 
 Incluye, entre otras mejoras acumuladas:
 
@@ -18,9 +18,10 @@ Incluye, entre otras mejoras acumuladas:
 - Método gráfico para modelos de dos variables.
 - Mejoras de entrada numérica, fracciones y separadores de miles.
 - Gráficos con escala más legible y etiquetas de ejes ajustadas.
+- Diagnóstico visual de infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates en la prueba de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes numéricamente pequeños.
 - Módulo PERT / CPM ya integrado como complemento.
 
-**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v4.0**.
+**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v5.0**.
 
 ## PERT / CPM — fase 1
 
@@ -166,3 +167,9 @@ En esta versión se amplía la explicación educativa del procedimiento sin modi
 
 ### v3.17
 Mejoras de robustez en números escritos/importados (miles, decimales y fracciones) y soporte del rango negativo del control de Z del método gráfico.
+
+### v4.2.5 — personalización y dominio visible
+- La no negatividad detectada desde PDF se presenta como información normal del modelo en una tarjeta con el color de acento elegido, no como advertencia amarilla.
+- Las advertencias reales de lectura, como un RHS negativo, conservan el color semántico amarillo.
+- Se mantienen separados los colores de personalización de los colores semánticos de estado.
+- Se agregan tres acentos: Rosa, Magenta e Índigo, junto con Azul, Turquesa y Violeta.

@@ -1,4 +1,4 @@
-# IO Solver v4.0 — Guía rápida para explicar el proyecto
+# IO Solver v5.0 — Guía rápida para explicar el proyecto
 
 > **Alcance de esta guía:** esta guía está enfocada exclusivamente en el **módulo Simplex**, que es el componente que se presenta para la exención. El resto de la aplicación no forma parte de la explicación principal de esta guía.
 
@@ -69,4 +69,9 @@ Porque permite trabajar con ejercicios escritos previamente y probar la capacida
 
 ## Versión final
 
-La versión de entrega es **IO Solver 3.0**. Las versiones 2.x corresponden al desarrollo incremental de funcionalidades y al refinamiento visual; 3.0 consolida la versión estable que se utiliza para la presentación del proyecto.
+La versión de entrega es **IO Solver 5.0**. Las versiones 2.x corresponden al desarrollo incremental de funcionalidades y al refinamiento visual; 5.0 consolida la versión estable actual que se utiliza para la presentación del proyecto.
+
+
+## Diagnóstico de condiciones especiales
+
+La versión 5.0 puede explicar por qué el procedimiento terminó o encontró una situación especial. Además, durante la importación distingue el dominio de no negatividad de las restricciones estructurales y separa los empates de variable entrante de los empates de razón. No presenta estas condiciones como errores de software: las presenta como estados matemáticos del procedimiento. Puede señalar infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes muy pequeños.

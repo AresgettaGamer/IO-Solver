@@ -20,6 +20,7 @@ const el = {
   resultStatus: document.getElementById('result-status'),
   resultSummary: document.getElementById('result-summary'),
   methodBadge: document.getElementById('method-badge'),
+  diagnosticPanel: document.getElementById('diagnostic-panel'),
   solutionCards: document.getElementById('solution-cards'),
   processOutput: document.getElementById('process-output'),
   learningMode: null,
@@ -198,9 +199,17 @@ function parseFinite(value) {
 }
 
 function readProblem() {
+  const inputDiagnostics = [];
   const objective = Array.from(document.querySelectorAll('.objective-coeff')).map((input) => parseFinite(input.value));
   if (objective.some((x) => x === null)) throw new Error('Todos los coeficientes de la función objetivo deben ser números válidos.');
-  if (objective.every((x) => Math.abs(x) < EPS)) throw new Error('La función objetivo no puede tener todos sus coeficientes en cero.');
+  if (objective.every((x) => Math.abs(x) < EPS)) {
+    inputDiagnostics.push({
+      kind: 'zero-objective', severity: 'info',
+      title: 'Función objetivo nula',
+      summary: 'Todos los coeficientes de Z son 0.',
+      explanation: 'El modelo sigue siendo válido: cualquier solución factible tiene el mismo valor de Z = 0. El procedimiento puede resolverlo y comprobar la factibilidad.'
+    });
+  }
 
   const constraints = [];
   for (let i = 0; i < state.constraints; i += 1) {
@@ -208,10 +217,21 @@ function readProblem() {
     const rhs = parseFinite(document.querySelector(`.rhs[data-row="${i}"]`).value);
     const op = document.querySelector(`select[data-kind="operator"][data-row="${i}"]`).value;
     if (coeffs.some((x) => x === null) || rhs === null) throw new Error(`La restricción ${i + 1} contiene datos inválidos.`);
-    if (coeffs.every((x) => Math.abs(x) < EPS)) throw new Error(`La restricción ${i + 1} no puede tener todos sus coeficientes en cero.`);
+    if (coeffs.every((x) => Math.abs(x) < EPS)) {
+      const redundant = (op === '<=' && rhs >= -EPS) || (op === '>=' && rhs <= EPS) || (op === '=' && Math.abs(rhs) <= EPS);
+      inputDiagnostics.push({
+        kind: redundant ? 'zero-constraint-redundant' : 'zero-constraint-infeasible',
+        severity: redundant ? 'warning' : 'danger',
+        title: redundant ? `R${i + 1} no aporta una condición nueva` : `R${i + 1} puede hacer el modelo infactible`,
+        summary: `Todos los coeficientes de R${i + 1} son 0.`,
+        explanation: redundant
+          ? `La condición 0 ${op === '<=' ? '≤' : op === '>=' ? '≥' : '='} ${formatNumber(rhs)} es redundante. Se permite continuar para que puedas ver cómo la trata el procedimiento.`
+          : `La condición 0 ${op === '<=' ? '≤' : op === '>=' ? '≥' : '='} ${formatNumber(rhs)} no puede cumplirse con esos coeficientes. Puedes resolver para confirmar la infactibilidad.`
+      });
+    }
     constraints.push({ coeffs, op, rhs });
   }
-  return { type: state.objectiveType, objective, constraints, nonnegative: state.nonnegative };
+  return { type: state.objectiveType, objective, constraints, nonnegative: state.nonnegative, inputDiagnostics };
 }
 
 function clean(x) { return Math.abs(x) < EPS ? 0 : x; }
@@ -467,14 +487,14 @@ function setObjectiveFromCoefficients(tableau, base, coefficients, columnMeta, r
   }
 }
 
-function runSimplex(tableau, base, columns, stageLabel, iterations, seen) {
+function runSimplex(tableau, base, columns, stageLabel, iterations, seen, options = {}) {
   let iter = 0;
   const total = columns.length;
   while (iter < MAX_ITERATIONS) {
-    const pivotCol = chooseEnteringColumn(tableau[0], total);
+    const pivotCol = chooseEnteringColumn(tableau[0], total, columns, options.excludeKinds || []);
     if (pivotCol === -1) return { status: 'optimal', iterations, phaseIterations: iter };
     const pivotRow = chooseLeavingRow(tableau, pivotCol);
-    if (pivotRow === -1) return { status: 'unbounded', iterations, phaseIterations: iter, message: `La variable entrante ${columns[pivotCol].name} no tiene una fila saliente válida.` };
+    if (pivotRow === -1) { const ratios = []; const rhsCol = tableau[0].length - 1; for (let i = 1; i < tableau.length; i += 1) { const a = tableau[i][pivotCol], rhs = tableau[i][rhsCol]; ratios.push({ row: i - 1, base: base[i - 1], numerator: rhs, denominator: a, ratio: a > EPS ? rhs / a : null }); } return { status: 'unbounded', iterations, phaseIterations: iter, message: `La variable entrante ${columns[pivotCol].name} no tiene una fila saliente válida.`, termination: { entering: columns[pivotCol].name, pivotCol, ratios, tableau: tableau.map(r => r.slice()), base: base.slice() } }; }
     const pivotValue = tableau[pivotRow][pivotCol];
     const ratios = [];
     for (let i = 1; i < tableau.length; i += 1) {
@@ -578,9 +598,12 @@ function buildEnteringReason(entering, after, before, pivotCol, candidates) {
   return `Entra ${entering} porque su coeficiente ${formatNumber(coeff)} es el más negativo entre las alternativas de la fila de Z.`;
 }
 
-function chooseEnteringColumn(objectiveRow, totalVariables) {
+function chooseEnteringColumn(objectiveRow, totalVariables, columns = [], excludeKinds = []) {
   let best = -1, mostNegative = -EPS;
-  for (let j = 0; j < totalVariables; j += 1) if (objectiveRow[j] < mostNegative) { mostNegative = objectiveRow[j]; best = j; }
+  for (let j = 0; j < totalVariables; j += 1) {
+    if (excludeKinds.length && columns[j] && excludeKinds.includes(columns[j].kind)) continue;
+    if (objectiveRow[j] < mostNegative) { mostNegative = objectiveRow[j]; best = j; }
+  }
   return best;
 }
 function chooseLeavingRow(tableau, pivotCol) {
@@ -638,6 +661,210 @@ function cleanupArtificialBasis(tableau, base, columns, artificial) {
   return { ok: true };
 }
 
+
+function getArtificialValues(result) {
+  const values = {};
+  const artificial = result.std?.artificial || [];
+  if (!result.tableau || !result.base || !result.columns) return values;
+  const rhs = result.tableau[0].length - 1;
+  for (const art of artificial) values[art.name] = 0;
+  for (let i = 0; i < result.base.length; i += 1) {
+    const name = result.base[i];
+    if (Object.prototype.hasOwnProperty.call(values, name)) values[name] = clean(result.tableau[i + 1][rhs]);
+  }
+  return values;
+}
+
+function analyzeSimplexDiagnostics(problem, result) {
+  const findings = [];
+  const iterations = result.iterations || [];
+  const add = (kind, severity, title, summary, explanation, evidence = '', meta = {}) => findings.push({ kind, severity, title, summary, explanation, evidence, ...meta });
+
+  if (problem.objective.every(value => Math.abs(value) < EPS)) {
+    add('zero-objective', 'info', 'Función objetivo nula',
+      'Todos los coeficientes de Z son 0.',
+      'No hay una dirección de mejora que optimizar: cualquier solución factible tiene Z = 0. El resultado depende de la factibilidad del conjunto de restricciones.',
+      'Z = 0', { primary: false });
+  }
+  problem.constraints.forEach((constraint, index) => {
+    if (!constraint.coeffs.every(value => Math.abs(value) < EPS)) return;
+    const redundant = (constraint.op === '<=' && constraint.rhs >= -EPS) || (constraint.op === '>=' && constraint.rhs <= EPS) || (constraint.op === '=' && Math.abs(constraint.rhs) <= EPS);
+    add(redundant ? 'zero-constraint-redundant' : 'zero-constraint-infeasible', redundant ? 'warning' : 'danger',
+      redundant ? `R${index + 1} es una restricción redundante` : `R${index + 1} hace el modelo infactible`,
+      `Todos los coeficientes de R${index + 1} son 0.`,
+      redundant
+        ? `La condición 0 ${constraint.op === '<=' ? '≤' : constraint.op === '>=' ? '≥' : '='} ${formatNumber(constraint.rhs)} no limita las variables. Se conserva para mostrar cómo el procedimiento la trata.`
+        : `La condición 0 ${constraint.op === '<=' ? '≤' : constraint.op === '>=' ? '≥' : '='} ${formatNumber(constraint.rhs)} no puede satisfacerse con esos coeficientes. La resolución permite confirmar la infactibilidad.`,
+      `R${index + 1}: 0 ${constraint.op === '<=' ? '≤' : constraint.op === '>=' ? '≥' : '='} ${formatNumber(constraint.rhs)}`, { primary: false });
+  });
+
+  if (result.status === 'infeasible') {
+    const artificialValues = getArtificialValues(result);
+    const positiveArtificial = Object.entries(artificialValues).filter(([, value]) => value > 1e-7);
+    const artificialSum = Object.values(artificialValues).reduce((sum, value) => sum + Math.max(0, value), 0);
+    const phase1Row = [...iterations].reverse().find(it => it.type === 'iteration' && String(it.stage || '').includes('Fase I'));
+    const wValue = phase1Row ? clean(-phase1Row.tableau[0][phase1Row.tableau[0].length - 1]) : artificialSum;
+    const details = positiveArtificial.length
+      ? positiveArtificial.map(([name, value]) => `${name} = ${formatNumber(value)}`).join(' · ')
+      : `ΣA = ${formatNumber(artificialSum)}`;
+    add('infeasible', 'danger', 'No se encontró una solución factible',
+      'La Fase I terminó sin poder llevar la suma de las variables artificiales a cero.',
+      'Las variables artificiales son temporales. Si incluso al optimizar la Fase I alguna permanece con valor positivo, las restricciones originales no pueden satisfacerse simultáneamente. Por eso el procedimiento termina aquí y no comienza la Fase II.',
+      `${details}${Number.isFinite(wValue) ? ` · W = ${formatNumber(wValue)}` : ''}`,
+      { primary: true });
+  }
+
+  if (result.status === 'unbounded') {
+    const term = result.termination;
+    const entering = term?.entering || (result.message?.match(/entrante ([A-Za-z0-9₁₂₃₄₅₆₇₈₉]+)/i)?.[1]);
+    const valid = (term?.ratios || []).filter(r => r.ratio !== null && Number.isFinite(r.ratio) && r.ratio >= -EPS);
+    add('unbounded', 'danger', 'La dirección de mejora no está acotada',
+      `No existe una fila saliente válida para ${entering || 'la variable entrante'}.`,
+      'Simplex encontró una variable que todavía puede mejorar la función objetivo, pero ninguna restricción proporciona una razón válida que limite cuánto puede aumentar. Por eso no existe un vértice óptimo finito en esa dirección.',
+      valid.length ? `Razones válidas: ${valid.map(r => `${r.base} = ${formatNumber(r.ratio)}`).join(' · ')}` : 'No se encontró ninguna razón válida.',
+      { primary: true });
+  }
+
+  if (result.status === 'cycle') {
+    add('cycle', 'warning', 'Se detectó una repetición del tableau',
+      'El procedimiento volvió a un estado que ya había aparecido.',
+      'El programa detiene las iteraciones para evitar continuar indefinidamente. La repetición puede aparecer en problemas degenerados y no significa por sí sola que el modelo sea infactible.',
+      'Se comparan el tableau y la base de cada iteración.', { primary: true });
+  }
+
+  if (result.status === 'limit') {
+    add('limit', 'warning', 'Se alcanzó el límite de iteraciones',
+      `El procedimiento llegó a ${MAX_ITERATIONS} iteraciones sin confirmar una conclusión.`,
+      'Esto no demuestra que el problema sea infactible, no acotado u óptimo. El límite solo evita que el procedimiento continúe indefinidamente.',
+      `Límite configurado: ${MAX_ITERATIONS} iteraciones.`, { primary: true });
+  }
+
+  // Ties in the entering variable are distinct from ratio ties. If two or more
+  // nonbasic columns share the same most-negative objective coefficient, there
+  // is more than one equally attractive entering variable at that step.
+  for (const it of iterations) {
+    if (!it.before || !it.pivot || !Array.isArray(it.before[0])) continue;
+    if (result.status === 'infeasible' && String(it.stage || '').includes('Fase I')) continue;
+    const candidates = result.columns
+      .map((col, j) => ({ name: col.name, coefficient: it.before[0][j], kind: col.kind }))
+      .filter(x => x.kind !== 'artificial' && x.coefficient < -EPS);
+    if (candidates.length > 1) {
+      const best = Math.min(...candidates.map(x => x.coefficient));
+      const tied = candidates.filter(x => Math.abs(x.coefficient - best) <= 1e-7);
+      if (tied.length > 1) {
+        add('entering-tie', 'info', 'Empate entre variables entrantes',
+          `Hay ${tied.length} variables con el mismo coeficiente más negativo en la fila objetivo.`,
+          'Más de una variable puede entrar a la base con la misma mejora inmediata según la regla de la fila objetivo. El recorrido elegido por el programa no es la única posibilidad.',
+          tied.map(x => `${x.name} = ${formatNumber(x.coefficient)}`).join(' · '),
+          { iteration: it.iterationNumber });
+      }
+    }
+  }
+
+  // Ratio observations: ties and zero ratios are educational conditions, not errors.
+  for (const it of iterations) {
+    if (!it.pivot || !Array.isArray(it.ratios)) continue;
+    if (result.status === 'infeasible' && String(it.stage || '').includes('Fase I')) continue;
+    const valid = it.ratios.filter(r => r.ratio !== null && Number.isFinite(r.ratio) && r.ratio >= -EPS);
+    if (!valid.length) continue;
+    const minRatio = Math.min(...valid.map(r => r.ratio));
+    const tied = valid.filter(r => Math.abs(r.ratio - minRatio) <= 1e-7);
+    if (tied.length > 1) {
+      add('ratio-tie', 'info', 'Empate en la prueba de razón',
+        `La razón mínima ${formatNumber(minRatio)} aparece en ${tied.length} filas.`,
+        'Dos o más filas pueden ser elegidas como fila saliente porque tienen la misma razón mínima. La regla de selección del programa determina cuál se utiliza para este recorrido.',
+        tied.map(r => `${r.base} = ${formatNumber(r.ratio)}`).join(' · '),
+        { iteration: it.iterationNumber });
+    }
+    if (Math.abs(minRatio) <= 1e-7) {
+      add('degenerate', 'warning', 'Se produjo una razón cero',
+        `La fila ${tied[0]?.base || 'pivote'} tiene razón 0.`,
+        'Una razón mínima igual a cero indica una solución básica degenerada: una variable básica puede valer cero. El procedimiento puede continuar; simplemente significa que el siguiente pivote puede cambiar la base sin aumentar inmediatamente el valor de la función objetivo.',
+        `Razón mínima: 0 = RHS / coeficiente positivo`,
+        { iteration: it.iterationNumber });
+    }
+    if (Math.abs(it.pivot.value) > EPS && Math.abs(it.pivot.value) < 1e-6) {
+      add('small-pivot', 'warning', 'Elemento pivote muy pequeño',
+        `El pivote de la iteración ${it.iterationNumber} es ${formatNumber(it.pivot.value)}.`,
+        'Los pivotes muy pequeños pueden amplificar errores de redondeo. El programa continúa, pero conviene revisar los resultados con mayor precisión.',
+        `Pivote: ${formatNumber(it.pivot.value)}`, { iteration: it.iterationNumber });
+    }
+  }
+
+  if (result.status === 'optimal') {
+    const last = [...iterations].reverse().find(it => it.type === 'iteration' && it.tableau && it.tableau[0]);
+    if (last) {
+      const nonbasicAlternatives = [];
+      for (let j = 0; j < result.columns.length; j += 1) {
+        const col = result.columns[j];
+        if (col.kind !== 'decision') continue;
+        if (last.base.includes(col.name)) continue;
+        if (Math.abs(last.tableau[0][j]) <= 1e-7) {
+          const rhsCol = last.tableau[0].length - 1;
+          const validRatios = [];
+          for (let r = 1; r < last.tableau.length; r += 1) {
+            const coefficient = last.tableau[r][j];
+            const rhs = last.tableau[r][rhsCol];
+            if (coefficient > EPS) {
+              const ratio = rhs / coefficient;
+              if (ratio >= -EPS && Number.isFinite(ratio)) validRatios.push(ratio);
+            }
+          }
+          const adjacentRatio = validRatios.length ? Math.min(...validRatios) : null;
+          if (adjacentRatio !== null && adjacentRatio > 1e-7) nonbasicAlternatives.push(col.name);
+        }
+      }
+      if (nonbasicAlternatives.length) {
+        add('alternative-optimum', 'info', 'Existe una posible solución óptima alternativa',
+          `${nonbasicAlternatives.join(', ')} tiene coeficiente 0 en la fila objetivo y no está en la base.`,
+          'Cuando una variable de decisión no básica tiene indicador 0 en la fila objetivo de un tableau óptimo, puede entrar sin cambiar el valor de la función objetivo. Eso indica la posibilidad de otra solución óptima.',
+          `Indicadores: ${nonbasicAlternatives.map(name => `${name} = 0`).join(' · ')}`);
+      }
+    }
+  }
+
+  if (result.std?.hasArtificial && result.status === 'optimal') {
+    const artificialValues = getArtificialValues(result);
+    const zeroBasic = Object.entries(artificialValues).filter(([name, value]) => Math.abs(value) <= 1e-7 && result.base.includes(name));
+    if (zeroBasic.length) {
+      add('artificial-zero', 'info', 'Una variable artificial quedó en la base con valor cero',
+        `${zeroBasic.map(([name]) => name).join(', ')} todavía ocupa una fila básica, pero su valor es 0.`,
+        'La variable artificial ya no aporta valor a la solución. El programa intenta retirarla de la base mediante un pivote con una variable original cuando es posible.',
+        zeroBasic.map(([name, value]) => `${name} = ${formatNumber(value)}`).join(' · '));
+    }
+  }
+
+  // De-duplicate repeated findings from several iterations while keeping the evidence useful.
+  const unique = [];
+  const keys = new Set();
+  for (const f of findings) {
+    const key = `${f.kind}|${f.title}|${f.evidence || ''}`;
+    if (keys.has(key)) continue;
+    keys.add(key);
+    unique.push(f);
+  }
+  const severityRank = { danger: 0, warning: 1, info: 2 };
+  unique.sort((a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9));
+  return unique;
+}
+
+function renderDiagnosticPanel(diagnostics) {
+  if (!diagnostics?.length) return '';
+  const primary = diagnostics.find(x => x.primary) || diagnostics[0];
+  const others = diagnostics.filter(x => x !== primary);
+  const icon = primary.severity === 'danger' ? '❗' : primary.severity === 'warning' ? '⚠' : 'ⓘ';
+  const primaryClass = `diagnostic-${primary.severity}`;
+  const otherCards = others.map(d => `<article class="diagnostic-mini diagnostic-${d.severity}"><div class="diagnostic-mini-icon">${d.severity === 'danger' ? '❗' : d.severity === 'warning' ? '⚠' : 'ⓘ'}</div><div><strong>${escapeHtml(d.title)}</strong><p>${escapeHtml(d.summary)}</p>${d.evidence ? `<code>${escapeHtml(d.evidence)}</code>` : ''}</div></article>`).join('');
+  return `<section class="diagnostic-panel ${primaryClass}" aria-live="polite">
+    <div class="diagnostic-glow" aria-hidden="true"></div>
+    <div class="diagnostic-head"><div class="diagnostic-icon">${icon}</div><div><p class="diagnostic-kicker">Diagnóstico del procedimiento</p><h2>${escapeHtml(primary.title)}</h2><p>${escapeHtml(primary.summary)}</p></div><span class="diagnostic-state">Condición matemática</span></div>
+    ${primary.evidence ? `<div class="diagnostic-evidence"><span>Evidencia</span><strong>${escapeHtml(primary.evidence)}</strong></div>` : ''}
+    <div class="diagnostic-explanation"><h3>¿Qué significa?</h3><p>${escapeHtml(primary.explanation)}</p></div>
+    ${primary.kind === 'infeasible' ? `<div class="diagnostic-flow"><span>Fase I</span><b>→</b><span>ΣA no llega a 0</span><b>→</b><strong>Fase II no inicia</strong></div>` : ''}
+    ${others.length ? `<details class="diagnostic-more"><summary>Ver otras condiciones detectadas (${others.length})</summary><div class="diagnostic-grid">${otherCards}</div></details>` : ''}
+  </section>`;
+}
+
 function solveTwoPhase(problem) {
   const std = standardize(problem);
   const { tableau, base, columns, artificial } = std;
@@ -651,11 +878,11 @@ function solveTwoPhase(problem) {
     const phase1Setup = initializePhaseOne(tableau, base, columns, artificial);
     iterations.push({ type: 'objective', stage: 'Fase I · función auxiliar', tableau: tableau.map((r) => r.slice()), base: base.slice(), pivot: null, ratios: null, before: phase1Before, transition: 'phase1-objective', artificialNames: artificial.map((a) => a.name), phase1ObjectiveBefore: phase1Setup.objectiveBefore, phase1AdjustmentSteps: phase1Setup.adjustmentSteps });
     const phase1 = runSimplex(tableau, base, columns, 'Fase I', iterations, seen);
-    if (phase1.status !== 'optimal') return { ...phase1, tableau, base, columns, std };
+    if (phase1.status !== 'optimal') { const partial = { ...phase1, tableau, base, columns, std }; partial.diagnostics = analyzeSimplexDiagnostics(problem, partial); return partial; }
     const artificialValue = -tableau[0][tableau[0].length - 1];
-    if (Math.abs(artificialValue) > 1e-7) return { status: 'infeasible', message: 'El modelo no tiene una solución factible (la suma mínima de variables artificiales es positiva).', iterations, tableau, base, columns, std };
+    if (Math.abs(artificialValue) > 1e-7) { const partial = { status: 'infeasible', message: 'La Fase I terminó con una suma positiva de variables artificiales.', iterations, tableau, base, columns, std }; partial.diagnostics = analyzeSimplexDiagnostics(problem, partial); return partial; }
     const cleaned = cleanupArtificialBasis(tableau, base, columns, artificial);
-    if (!cleaned.ok) return { status: 'infeasible', message: cleaned.reason, iterations, tableau, base, columns, std };
+    if (!cleaned.ok) { const partial = { status: 'infeasible', message: cleaned.reason, iterations, tableau, base, columns, std }; partial.diagnostics = analyzeSimplexDiagnostics(problem, partial); return partial; }
   }
 
   const phase2Coefficients = Array(columns.length).fill(0);
@@ -692,7 +919,7 @@ function solveTwoPhase(problem) {
   }
   setObjectiveFromCoefficients(tableau, base, phase2Coefficients, columns);
   iterations.push({ type: 'objective', stage: 'Fase II · función objetivo', tableau: tableau.map((r) => r.slice()), base: base.slice(), pivot: null, ratios: null, before: phase2Before, transition: 'phase2-objective', artificialNames: artificial.map((a) => a.name), originalObjectiveRow, restorationSteps });
-  const phase2 = runSimplex(tableau, base, columns, 'Fase II', iterations, seen);
+  const phase2 = runSimplex(tableau, base, columns, 'Fase II', iterations, seen, { excludeKinds: ['artificial'] });
   const solution = extractOriginalSolution(tableau, base, columns, problem.objective.length, problem.nonnegative);
   let status = phase2.status;
   let message = phase2.message || (status === 'optimal' ? 'Se alcanzó el óptimo: no quedan coeficientes negativos en la fila objetivo del tableau transformado.' : '');
@@ -700,7 +927,7 @@ function solveTwoPhase(problem) {
     if (problem.type === 'min') message = `Solución óptima de minimización encontrada. ${message}`;
     else message = `Solución óptima de maximización encontrada. ${message}`;
   }
-  return { status, message, iterations, tableau, base, columns, std, solution };
+  const result = { status, message, iterations, tableau, base, columns, std, solution }; result.diagnostics = analyzeSimplexDiagnostics(problem, result); return result;
 }
 
 function extractOriginalSolution(tableau, base, columns, originalVarCount, nonnegative) {
@@ -760,6 +987,7 @@ function renderResults(problem, result) {
   const method = result.std?.hasArtificial ? 'Método de dos fases' : 'Simplex directo';
   el.methodBadge.textContent = method;
   el.methodBadge.classList.remove('hidden');
+  if (el.diagnosticPanel) el.diagnosticPanel.innerHTML = renderDiagnosticPanel(result.diagnostics || []);
 
   const graphCapable = problem.objective.length === 2 && problem.nonnegative && result.status !== 'infeasible';
   if (graphCapable && el.graphSection) {
@@ -898,7 +1126,7 @@ function renderStage(it, idx, columns) {
   if (it.pivot) {
     const ratioRows = (it.ratios || []).map((r) => {
       const valid = r.ratio !== null && Number.isFinite(r.ratio);
-      return `<li><span>${escapeHtml(r.base)}: ${formatNumber(r.numerator)} ÷ ${formatNumber(r.denominator)}</span><strong>${valid ? formatNumber(r.ratio) : 'No válida'}</strong></li>`;
+      const reason = !valid ? (r.denominator <= EPS ? 'coeficiente no positivo' : 'razón no admisible') : ''; return `<li class="${valid ? '' : 'ratio-invalid'}"><span>${escapeHtml(r.base)}: ${formatNumber(r.numerator)} ÷ ${formatNumber(r.denominator)}${reason ? `<small>${reason}</small>` : ''}</span><strong>${valid ? formatNumber(r.ratio) : 'No válida'}</strong></li>`;
     }).join('');
 
     const learningSteps = (it.pivotSteps || []).map((step, stepIndex) => {
@@ -1195,7 +1423,39 @@ function parseLinearExpression(expr) {
   return found;
 }
 
+function isVariableDomainLine(line) {
+  const normalized = normalizeProblemText(String(line || '')).replace(/\s+/g, ' ').trim();
+  // Dominio de no negatividad: no es una restricción estructural del modelo.
+  // El texto extraído de algunos PDF puede perder las comas y dejar, por ejemplo,
+  // "X1 X2 >= 0". También aceptamos separadores visuales habituales como ";".
+  // No tratamos cualquier X1 + X2 >= 0 como dominio por sí solo: esa expresión
+  // puede ser una restricción matemática legítima. La asociación con el dominio
+  // se refuerza en extractModelFromText() cuando la línea original lo declara.
+  const variableList = String.raw`x\s*(?:_?\s*\d+)?`;
+  return new RegExp(`^(?:${variableList})(?:\\s*[,;]\\s*${variableList})*\\s*>=\\s*0$`, 'i').test(normalized)
+    || new RegExp(`^(?:${variableList})(?:\\s+${variableList})+\\s*>=\\s*0$`, 'i').test(normalized);
+}
+
+function isExplicitNonnegativityDeclaration(line) {
+  const raw = String(line || '').trim();
+  if (!raw) return false;
+  const normalized = normalizeProblemText(raw).replace(/\s+/g, ' ').trim();
+  // Solo declaramos dominio cuando el texto conserva la separación entre
+  // variables (coma, punto y coma o separación clara). Una expresión como
+  // X1 + X2 >= 0 puede ser una restricción legítima y no debe eliminarse.
+  return isVariableDomainLine(normalized);
+}
+
+function isDomainArtifactConstraint(constraint, variableCount, domainDetected) {
+  if (!constraint || constraint.op !== '>=' || Math.abs(constraint.rhs) > EPS) return false;
+  if (!domainDetected) return false;
+  const coeffs = constraint.coeffs || [];
+  if (coeffs.length !== variableCount) return false;
+  return coeffs.every(value => Math.abs(value - 1) < EPS);
+}
+
 function parseConstraintFromLine(line) {
+  if (isVariableDomainLine(line)) return null;
   const normalized = normalizeEquationLine(line);
   const opMatch = normalized.match(/(<=|>=|=)/);
   if (!opMatch) return null;
@@ -1499,6 +1759,7 @@ function reconstructBrokenEquationLines(lines) {
 function extractModelFromText(text) {
   const raw = String(text || '');
   const sourceLines = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
+  const domainDetected = sourceLines.some(isExplicitNonnegativityDeclaration);
   const lines = reconstructBrokenEquationLines(sourceLines);
   let objective = null;
   const constraints = [];
@@ -1513,7 +1774,14 @@ function extractModelFromText(text) {
   }
   for (let i = 0; i < lines.length; i += 1) {
     const parsed = parseConstraintFromLine(lines[i]);
-    if (parsed) { constraints.push(parsed); used.add(i); }
+    if (!parsed) continue;
+    // Una declaración explícita de no negatividad pertenece al dominio de las
+    // variables, no al conjunto de restricciones estructurales. Algunos PDF
+    // pierden las comas y terminan produciendo X1 + X2 >= 0; si ya vimos la
+    // declaración de dominio, retiramos ese artefacto antes de construir el modelo.
+    if (isDomainArtifactConstraint(parsed, objective?.objective?.length || 0, domainDetected)) continue;
+    constraints.push(parsed);
+    used.add(i);
   }
   if (!objective) {
     for (const line of lines) {
@@ -1525,10 +1793,15 @@ function extractModelFromText(text) {
   }
   if (objective && constraints.length) {
     const maxVars = Math.max(objective.objective.length, ...constraints.map(c => c.coeffs.length));
-    objective.objective.length = maxVars;
     while (objective.objective.length < maxVars) objective.objective.push(0);
+    if (objective.objective.length > maxVars) objective.objective = objective.objective.slice(0, maxVars);
     constraints.forEach(c => { while (c.coeffs.length < maxVars) c.coeffs.push(0); });
-    return { ok: true, type: objective.type, objective: objective.objective, constraints, lines, confidence: Math.min(1, 0.5 + 0.1 * Math.min(constraints.length, 4) + 0.2) };
+    const diagnostics = [];
+    // La no negatividad es el dominio por defecto, no una anomalía del modelo.
+    // La conservamos en el estado del problema, pero no mostramos una advertencia
+    // repetitiva cada vez que el PDF contiene la declaración X1, X2 >= 0.
+    if (constraints.some(c => c.rhs < -EPS)) diagnostics.push('El modelo contiene al menos una disponibilidad (lado derecho) negativa. Con no negatividad activa, podría no existir una solución factible; puedes importarlo y usar Resolver para comprobarlo.');
+    return { ok: true, type: objective.type, objective: objective.objective, constraints, lines, confidence: Math.min(1, 0.5 + 0.1 * Math.min(constraints.length, 4) + 0.2), nonnegative: true, domainDetected, diagnostics };
   }
 
   const semantic = naturalLanguageModel(raw);
@@ -1544,8 +1817,10 @@ function modelPreviewHtml(model) {
     return `<div>R<sub>${i + 1}</sub>: ${expr || '0'} ${c.op === '<=' ? '≤' : c.op === '>=' ? '≥' : '='} ${formatNumber(c.rhs)}</div>`;
   }).join('');
   const notes = model.semantic && model.explanations?.length ? `<div class="semantic-note"><strong>Interpretación automática:</strong><ul>${model.explanations.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul><small>${escapeHtml(model.note || 'Revisa este modelo antes de resolver.')}</small>${model.sourcePattern ? `<div class="semantic-source"><strong>Patrón usado:</strong> ${escapeHtml(model.sourcePattern)} · confianza ${Math.round((model.confidence || 0) * 100)}%</div>` : ''}${model.diagnostics?.length ? `<div class="semantic-diagnostic"><strong>⚠ Diagnóstico:</strong><ul>${model.diagnostics.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul><small>La advertencia no sustituye la resolución matemática; usa Resolver para confirmar si existe una solución factible.</small></div>` : ''}</div>` : '';
+  const domainNote = !model.semantic && model.domainDetected ? `<div class="domain-note" role="status"><span class="domain-note-icon" aria-hidden="true">ⓘ</span><div><strong>No negatividad detectada</strong><p>Se identificó X₁, X₂ ≥ 0 como dominio de las variables. La condición ya está activa por defecto y no se agregó como una restricción adicional.</p></div></div>` : '';
+  const importDiagnostics = !model.semantic && model.diagnostics?.length ? `<div class="semantic-note"><div class="semantic-diagnostic"><strong>⚠ Advertencias de lectura:</strong><ul>${model.diagnostics.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul><small>Puedes usar este modelo y resolverlo; la advertencia no bloquea el procedimiento.</small></div></div>` : '';
   const varNames = model.semantic && model.variableNames ? `<div class="semantic-note"><strong>Variables detectadas:</strong> X₁ = ${escapeHtml(model.variableNames[0])}, X₂ = ${escapeHtml(model.variableNames[1])}</div>` : '';
-  return `<div class="detected-equations"><div><strong>${model.type === 'max' ? 'Max' : 'Min'} Z =</strong> ${obj}</div>${cons}</div>${varNames}${notes}`;
+  return `<div class="detected-equations"><div><strong>${model.type === 'max' ? 'Max' : 'Min'} Z =</strong> ${obj}</div>${cons}</div>${varNames}${notes}${domainNote}${importDiagnostics}`;
 }
 
 function importModelIntoEditor(model) {
@@ -1784,7 +2059,11 @@ el.form.addEventListener('submit', (event) => {
     const problem = readProblem();
     const result = solveTwoPhase(problem);
     renderResults(problem, result);
-    showMessage(result.status === 'optimal' ? 'Problema resuelto correctamente.' : 'El modelo se procesó; revisa el estado del resultado.', result.status === 'optimal' ? 'ok' : '');
+    const inputWarnings = (problem.inputDiagnostics || []).filter(d => d.severity !== 'info');
+    const message = result.status === 'optimal'
+      ? (inputWarnings.length ? 'Problema resuelto; revisa las advertencias del diagnóstico.' : 'Problema resuelto correctamente.')
+      : 'El modelo se procesó; revisa el estado del resultado.';
+    showMessage(message, result.status === 'optimal' && !inputWarnings.length ? 'ok' : '');
     el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
     el.resultSection.classList.add('hidden');

@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>IO Solver · Investigación de Operaciones</title>
+  <title>IO Solver</title>
+  <link rel="icon" href="favicon-io-solver.svg?v=5.0" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,7 +17,7 @@
     </div>
     <div class="theme-tools launcher-theme" aria-label="Apariencia">
       <label class="compact-control"><span>Tema</span><select id="theme-select" aria-label="Tema de la interfaz"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></label>
-      <label class="compact-control"><span>Color</span><select id="accent-select" aria-label="Color de acento"><option value="blue">Azul</option><option value="teal">Turquesa</option><option value="violet">Violeta</option></select></label>
+      <label class="compact-control"><span>Color</span><select id="accent-select" aria-label="Color de acento"><option value="blue">Azul</option><option value="teal">Turquesa</option><option value="violet">Violeta</option><option value="pink">Rosa</option><option value="magenta">Magenta</option><option value="indigo">Índigo</option><option value="green">Verde</option></select></label>
     </div>
   </section>
   <section class="launcher-grid">
@@ -35,7 +36,7 @@
       <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
     </button>
   </section>
-  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 4.0</footer>
+  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 5.0</footer>
 </main>
 
 <main id="simplex-module" class="app-shell hidden">
@@ -154,6 +155,8 @@ Maximizar Z = 300 X1 + 150 X2
         </div>
         <div id="solution-cards" class="solution-cards"></div>
       </div>
+
+      <div id="diagnostic-panel" aria-label="Diagnóstico del procedimiento"></div>
 
       <section id="graph-section" class="panel hidden">
         <div class="section-title-row">

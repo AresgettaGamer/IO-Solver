@@ -1,4 +1,4 @@
-# IO Solver v4.0 — Documentación técnica y guía de explicación
+# IO Solver v5.0 — Documentación técnica y guía de explicación
 
 ## 1. ¿Qué es el programa?
 
@@ -583,13 +583,53 @@ Porque esta implementación gráfica trabaja con exactamente dos variables y con
 
 ---
 
-## Versión pública actual: v4.0
+## Versión pública actual: v5.0
 
-La versión 4.0 representa la promoción del estado estable alcanzado durante la línea 3.x. El módulo Simplex se considera cerrado para esta etapa del proyecto: se conservan su motor de resolución, método de dos fases, explicación educativa, verificación, importación de PDF/texto y método gráfico.
+La versión 5.0 consolida la promoción estable de la línea v4.x y mantiene un sistema de diagnóstico del procedimiento. El módulo Simplex conserva su motor de resolución, método de dos fases, explicación educativa, verificación, importación de PDF/texto y método gráfico, y ahora explica las condiciones especiales que hacen que una iteración termine o requiera atención.
 
 Las referencias a `v3.x` dentro de esta documentación corresponden al historial real de desarrollo y no se renumeran, para conservar la trazabilidad de las correcciones.
 
 La siguiente etapa del proyecto puede incorporar progresivamente otros contenidos del curso de Investigación de Operaciones como módulos independientes, sin alterar el núcleo estable de Simplex.
+
+## 22.2 Actualización v5.0 · pruebas de estrés e importación robusta y consolidación
+
+## 22.3 Consolidación v5.0 · dominio de no negatividad y advertencias no bloqueantes
+
+La ronda de estrés detectó que algunas extracciones de PDF todavía podían convertir la declaración `X₁, X₂ ≥ 0` en una restricción equivalente como `X₁ + X₂ ≥ 0`. Esta revisión separa explícitamente el dominio de no negatividad de las restricciones estructurales y conserva la casilla de no negatividad activa por defecto.
+
+También se evita bloquear innecesariamente modelos que contienen una función objetivo nula o una restricción con todos sus coeficientes en cero. Estos casos se muestran como condiciones matemáticas en el diagnóstico y se deja que el procedimiento determine si la condición es redundante o infactible. Un RHS negativo se puede importar con una advertencia para que el usuario pueda resolverlo y comprobar la factibilidad.
+
+
+La versión 5.0 consolida el trabajo de diagnóstico de v4.1 y v4.2 a partir de un banco de pruebas con modelos normales y casos especiales.
+
+Cambios principales:
+- Las líneas como `X1, X2 ≥ 0` se reconocen como **dominio de no negatividad** y no se agregan como restricciones del modelo.
+- Se detecta por separado el **empate entre variables entrantes** y el **empate de la prueba de razón**.
+- El diagnóstico de óptimo alternativo exige una transición factible con razón mínima positiva; una razón cero por degeneración no se presenta como una solución alternativa distinta.
+- En problemas infactibles, las condiciones observadas únicamente durante Fase I no se mezclan con el diagnóstico matemático principal.
+- Durante Fase II las variables artificiales no pueden volver a entrar a la base como si fueran variables de decisión.
+- El importador rellena correctamente con ceros los coeficientes faltantes cuando una expresión utiliza menos variables que otra restricción.
+- El documento HTML usa `IO Solver` como título corto y un favicon SVG basado en texto Unicode.
+
+## 22.1 Diagnóstico de condiciones especiales
+
+`analyzeSimplexDiagnostics()` inspecciona el resultado y las iteraciones ya calculadas; no sustituye al motor matemático ni inventa una causa a partir del texto. Genera observaciones cuando la evidencia del tableau permite justificarlas.
+
+Detecta, entre otras condiciones:
+
+- **Infactibilidad:** en Fase I la suma de variables artificiales permanece positiva; se muestra qué artificiales conservan valor positivo y por qué no se inicia Fase II.
+- **No acotamiento:** existe una variable entrante, pero ninguna fila tiene una razón válida para convertirse en fila saliente.
+- **Ciclo:** se repite una combinación de tableau y base.
+- **Límite de iteraciones:** se alcanza el máximo configurado sin una conclusión.
+- **Empate en la prueba de razón:** varias filas comparten la razón mínima.
+- **Degeneración:** aparece una razón mínima igual a cero.
+- **Óptimo alternativo posible:** una variable de decisión no básica tiene indicador cero en un tableau óptimo.
+- **Variable artificial básica con valor cero:** puede requerir limpieza de la base antes de continuar.
+- **Pivote muy pequeño:** se señala una posible sensibilidad al redondeo.
+
+`renderDiagnosticPanel()` presenta una condición principal y, cuando corresponde, agrupa las demás como observaciones adicionales. Los colores amarillo, verde y rojo son semánticos del estado; no sustituyen el color de acento configurable (Azul, Turquesa o Violeta).
+
+La tarjeta de diagnóstico está diseñada como una capa funcional sobre el contenido, siguiendo el principio de usar Liquid Glass con moderación para elementos funcionales y reservar el color para énfasis semántico. Apple recomienda que Liquid Glass establezca una capa diferenciada para controles y navegación y que el color se aplique con moderación para elementos que necesiten énfasis.
 
 ## 23. Nota importante sobre el alcance
 
@@ -789,7 +829,7 @@ El objetivo visual es acercar la experiencia a una aplicación moderna sin sacri
 
 Durante las versiones 2.x se realizaron iteraciones específicas de funcionalidad PERT / CPM, visualización, análisis estadístico, reportes y refinamiento Liquid Glass.
 
-La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **4.0**.
+La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **5.0**.
 
 
 ## 29. Comprobación final de la solución (v3.3)
