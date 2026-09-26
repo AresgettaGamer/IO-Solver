@@ -197,6 +197,7 @@ input:focus, select:focus, button:focus-visible {
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
 table { width: 100%; border-collapse: collapse; min-width: 660px; }
 th, td { border-bottom: 1px solid var(--border); padding: 10px 9px; text-align: right; white-space: nowrap; }
+th, td { text-align: center; vertical-align: middle; }
 th:first-child, td:first-child { text-align: left; }
 thead th { background: var(--panel-soft); font-size: 0.81rem; }
 tbody tr:last-child td { border-bottom: 0; }
@@ -2761,4 +2762,60 @@ textarea::placeholder, input::placeholder { color: var(--muted); opacity: .9; }
   .diagnostic-icon { width: 42px; height: 42px; }
   .diagnostic-evidence { align-items: flex-start; flex-direction: column; }
   .diagnostic-evidence strong { text-align: left; }
+}
+
+/* v6.0 · Guía explícita para distinguir columnas de filas básicas */
+.phase-column-guide {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border, rgba(255,255,255,.12));
+  border-radius: 10px;
+  background: rgba(255,255,255,.035);
+  color: var(--muted, #aab4c8);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.phase-column-guide strong { color: inherit; }
+/* v6.0 · objetivo W visible en Fase I */
+.table-group-row th {
+  text-align: center;
+  vertical-align: middle;
+  background: rgba(255,255,255,.035);
+}
+.table-group-row small {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  opacity: .72;
+}
+.table-group-base,
+.table-group-solution,
+.table-group-columns {
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.table-group-columns {
+  color: var(--accent);
+}
+.table-group-base {
+  color: var(--muted);
+}
+.table-group-solution {
+  color: var(--muted);
+}
+
+/* v6.0 · separación y alineación de las tablas/procedimientos */
+.phase-grid strong { display:block; margin-bottom:4px; line-height:1.35; }
+.phase-grid small { display:block; margin-top:5px; line-height:1.45; }
+.phase-restoration-step .phase-math-scroll { margin-top:8px; }
+
+
+/* v6.0 · alineación explícita del encabezado y de las etiquetas de base */
+.table-wrap table thead tr:first-child .table-group-base,
+.table-wrap table thead tr:first-child .table-group-solution,
+.table-wrap table thead tr:first-child .table-group-columns,
+.table-wrap table thead tr:nth-child(2) th:first-child,
+.table-wrap table tbody td.base-cell {
+  text-align: center;
 }

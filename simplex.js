@@ -513,7 +513,7 @@ function runSimplex(tableau, base, columns, stageLabel, iterations, seen, option
     // Si usamos la base posterior al pivote, la fila saliente ya aparece con el
     // nombre de la variable entrante y fórmulas como "X2 ← X2 ÷ ..." resultan falsas.
     const pivotSteps = buildPivotSteps(before, pivotRow, pivotCol, baseBefore, columns);
-    const enteringReason = buildEnteringReason(entering, tableau, before, pivotCol, enteringCandidates);
+    const enteringReason = buildEnteringReason(entering, tableau, before, pivotCol, enteringCandidates, String(stageLabel).includes('Fase I') && !String(stageLabel).includes('Fase II') ? 'W' : 'Z');
     iterations.push({ type: 'iteration', iterationNumber: iter, stage: stageLabel, tableau: tableau.map((r) => r.slice()), base: base.slice(), pivot: { row: pivotRow, col: pivotCol, value: pivotValue, entering, leaving }, ratios, before, pivotSteps, enteringReason });
     const signature = tableau.flat().map((x) => Math.round(x * 1e8) / 1e8).join(',') + '|' + base.join(',');
     if (seen.has(signature)) return { status: 'cycle', iterations, phaseIterations: iter, message: 'Se detectó una repetición de tableau; se detuvo para evitar un ciclo.' };
@@ -534,8 +534,14 @@ function formatOperationFactor(factor) {
   return factor < 0 ? `+ ${f}` : `− ${f}`;
 }
 
-function rowVectorLabel(row) {
-  return `<span class="math-vector">[${row.map(formatNumber).join(' · ')}]</span>`;
+function rowVectorLabel(row, columns = null, options = {}) {
+  let values = row;
+  if (columns && options.hideArtificial) {
+    const keep = columns.map((c, index) => ({ c, index })).filter(({ c }) => c.kind !== 'artificial').map(({ index }) => index);
+    values = keep.map(index => row[index]);
+    if (row.length) values.push(row[row.length - 1]);
+  }
+  return `<span class="math-vector">[${values.map(formatNumber).join(' · ')}]</span>`;
 }
 
 function buildPivotSteps(before, pivotRow, pivotCol, baseBefore, columns) {
@@ -565,6 +571,7 @@ function buildPivotSteps(before, pivotRow, pivotCol, baseBefore, columns) {
     const after = before[r].map((value, c) => value - factor * normalized[c]);
     const arithmetic = before[r].map((value, c) => ({
       column: c === before[r].length - 1 ? 'Solución' : columns[c].name,
+      kind: c === before[r].length - 1 ? 'solution' : columns[c].kind,
       target: value,
       pivot: normalized[c],
       factor,
@@ -587,15 +594,15 @@ function buildPivotSteps(before, pivotRow, pivotCol, baseBefore, columns) {
   return steps;
 }
 
-function buildEnteringReason(entering, after, before, pivotCol, candidates) {
+function buildEnteringReason(entering, after, before, pivotCol, candidates, objectiveLabel = 'Z') {
   const coeff = before[0][pivotCol];
   if (!candidates.length) return '';
   const ordered = candidates.slice().sort((a, b) => a.coefficient - b.coefficient);
   const strongest = ordered[0];
   if (Math.abs(coeff - strongest.coefficient) < EPS) {
-    return `Entra ${entering} porque ${formatNumber(coeff)} es el coeficiente más negativo de la fila de Z. Cuanto más negativo es el coeficiente, mayor es la mejora potencial de Z al aumentar esa variable (en esta convención de maximización).`;
+    return `Entra ${entering} porque ${formatNumber(coeff)} es el coeficiente más negativo de la fila de ${objectiveLabel}. Cuanto más negativo es el coeficiente, mayor es la mejora potencial de ${objectiveLabel} al aumentar esa variable (en esta convención de maximización).`;
   }
-  return `Entra ${entering} porque su coeficiente ${formatNumber(coeff)} es el más negativo entre las alternativas de la fila de Z.`;
+  return `Entra ${entering} porque su coeficiente ${formatNumber(coeff)} es el más negativo entre las alternativas de la fila de ${objectiveLabel}.`;
 }
 
 function chooseEnteringColumn(objectiveRow, totalVariables, columns = [], excludeKinds = []) {
@@ -780,7 +787,7 @@ function analyzeSimplexDiagnostics(problem, result) {
       add('degenerate', 'warning', 'Se produjo una razón cero',
         `La fila ${tied[0]?.base || 'pivote'} tiene razón 0.`,
         'Una razón mínima igual a cero indica una solución básica degenerada: una variable básica puede valer cero. El procedimiento puede continuar; simplemente significa que el siguiente pivote puede cambiar la base sin aumentar inmediatamente el valor de la función objetivo.',
-        `Razón mínima: 0 = RHS / coeficiente positivo`,
+        `Razón mínima: 0 = Solución / coeficiente positivo`,
         { iteration: it.iterationNumber });
     }
     if (Math.abs(it.pivot.value) > EPS && Math.abs(it.pivot.value) < 1e-6) {
@@ -909,13 +916,14 @@ function solveTwoPhase(problem) {
     const basicRow = tableau[i + 1].slice();
     const arithmetic = before.map((value, j) => ({
       column: j === before.length - 1 ? 'Solución' : columns[j].name,
+      kind: j === before.length - 1 ? 'solution' : columns[j].kind,
       target: value,
       rowValue: basicRow[j],
       factor: cb,
       result: clean(value + cb * basicRow[j]),
     }));
     for (let j = 0; j <= rhsIndex; j += 1) workingObjective[j] += cb * basicRow[j];
-    restorationSteps.push({ rowLabel: basic, coefficient: cb, before, row: basicRow, result: workingObjective.slice(), arithmetic });
+    restorationSteps.push({ rowLabel: basic, coefficient: cb, before, row: basicRow, result: workingObjective.slice(), arithmetic, hideArtificial: true });
   }
   setObjectiveFromCoefficients(tableau, base, phase2Coefficients, columns);
   iterations.push({ type: 'objective', stage: 'Fase II · función objetivo', tableau: tableau.map((r) => r.slice()), base: base.slice(), pivot: null, ratios: null, before: phase2Before, transition: 'phase2-objective', artificialNames: artificial.map((a) => a.name), originalObjectiveRow, restorationSteps });
@@ -1051,9 +1059,9 @@ function formatNormalizationFormula(step, pivotValue) {
   return `<span class="math-inline"><strong>${row}</strong> ← ${row} ÷ ${mathFraction(pivotValue)}</span>`;
 }
 
-function renderArithmeticDetails(step) {
+function renderArithmeticDetails(step, columns = null, hideArtificial = false) {
   if (!step.arithmetic?.length) return '';
-  const cells = step.arithmetic.map(item => {
+  const cells = step.arithmetic.filter(item => !(hideArtificial && item.kind === 'artificial')).map(item => {
     const calc = `${mathFraction(item.target)} ${item.factor < 0 ? '+' : '−'} (${mathFraction(Math.abs(item.factor))})(${mathFraction(item.pivot)})`;
     return `<div class="arith-cell"><span class="arith-name">${escapeHtml(item.column)}</span><span class="arith-equation">${calc} = <strong>${mathFraction(item.result)}</strong></span></div>`;
   }).join('');
@@ -1062,9 +1070,12 @@ function renderArithmeticDetails(step) {
 
 function renderObjectiveArithmeticDetails(step) {
   if (!step.arithmetic?.length) return '';
-  const cells = step.arithmetic.map(item => {
+  const cells = step.arithmetic.filter(item => !(step.hideArtificial && item.kind === 'artificial')).map(item => {
     // Para ajustar una fila objetivo se aplica: objetivo_nuevo = objetivo_actual + factor × fila_básica.
-    const calc = `${mathFraction(item.target)} ${item.factor < 0 ? '−' : '+'} (${mathFraction(Math.abs(item.factor))})(${mathFraction(item.rowValue)})`;
+    // Fase I guarda el valor de la fila como `pivot`; Fase II históricamente lo guardaba como `rowValue`.
+    // Usamos ambos para que la explicación siempre muestre el valor REAL de la fila básica.
+    const rowValue = item.pivot ?? item.rowValue ?? 0;
+    const calc = `${mathFraction(item.target)} ${item.factor < 0 ? '−' : '+'} (${mathFraction(Math.abs(item.factor))})(${mathFraction(rowValue)})`;
     return `<div class="arith-cell"><span class="arith-name">${escapeHtml(item.column)}</span><span class="arith-equation">${calc} = <strong>${mathFraction(item.result)}</strong></span></div>`;
   }).join('');
   return `<details class="arithmetic-details"><summary>Ver la operación completa, columna por columna</summary><div class="arith-grid">${cells}</div></details>`;
@@ -1085,6 +1096,7 @@ function buildObjectiveAdjustmentDetails(beforeRow, tableau, base, columns, obje
     const after = before.map((value, j) => clean(value + cb * row[j]));
     const arithmetic = before.map((value, j) => ({
       column: j === before.length - 1 ? 'Solución' : columns[j].name,
+      kind: j === before.length - 1 ? 'solution' : columns[j].kind,
       target: value,
       pivot: row[j],
       factor: cb,
@@ -1129,6 +1141,7 @@ function renderStage(it, idx, columns) {
       const reason = !valid ? (r.denominator <= EPS ? 'coeficiente no positivo' : 'razón no admisible') : ''; return `<li class="${valid ? '' : 'ratio-invalid'}"><span>${escapeHtml(r.base)}: ${formatNumber(r.numerator)} ÷ ${formatNumber(r.denominator)}${reason ? `<small>${reason}</small>` : ''}</span><strong>${valid ? formatNumber(r.ratio) : 'No válida'}</strong></li>`;
     }).join('');
 
+    const hideArtificialInStage = String(it.stage || '').includes('Fase II');
     const learningSteps = (it.pivotSteps || []).map((step, stepIndex) => {
       return `<div class="calc-step ${step.kind === 'normalize' ? 'pivot-step' : ''}">
         <div class="step-number">${stepIndex + 1}</div>
@@ -1136,11 +1149,11 @@ function renderStage(it, idx, columns) {
           <div class="step-title">${escapeHtml(step.label)}</div>
           <div class="formula">${step.kind === 'normalize' ? formatNormalizationFormula(step, step.pivotValue) : formatOperationFormula(step)}</div>
           <div class="row-transition">
-            <span>${rowVectorLabel(step.before)}</span>
+            <span>${rowVectorLabel(step.before, columns, { hideArtificial: hideArtificialInStage })}</span>
             <span class="arrow">→</span>
-            <strong>${rowVectorLabel(step.after)}</strong>
+            <strong>${rowVectorLabel(step.after, columns, { hideArtificial: hideArtificialInStage })}</strong>
           </div>
-          ${step.kind === 'eliminate' ? renderArithmeticDetails(step) : ''}
+          ${step.kind === 'eliminate' ? renderArithmeticDetails(step, columns, hideArtificialInStage) : ''}
           <div class="pivot-zero">${step.kind === 'normalize'
             ? `El elemento pivote ${escapeHtml(step.pivotColumn)} queda en 1 en la fila pivote ${escapeHtml(step.rowLabel)}. Después del pivote, esta fila pasará a representar a ${escapeHtml(it.pivot.entering)}.`
             : `Se elimina el coeficiente de ${escapeHtml(step.pivotColumn)} de la fila ${escapeHtml(step.rowLabel)} usando la fila pivote ${escapeHtml(step.pivotLabel)}.`}</div>
@@ -1176,7 +1189,7 @@ function renderStage(it, idx, columns) {
     const oldRow = it.before?.[0] || [];
     const newRow = it.tableau?.[0] || [];
     details = `<div class="phase-transition">
-      <div class="phase-transition-head"><span class="phase-kicker">FASE I · CAMBIO DE OBJETIVO</span><strong>¿Por qué cambió la fila de Z?</strong></div>
+      <div class="phase-transition-head"><span class="phase-kicker">FASE I · CAMBIO DE OBJETIVO</span><strong>¿Por qué cambió la fila de Z a W?</strong></div>
       <p>El tableau inicial todavía no permite evaluar la factibilidad con una base válida cuando existen restricciones que requieren variables artificiales. Por eso se crea una función auxiliar <strong>W</strong> que busca hacer cero la suma de las variables artificiales.</p>
       <div class="phase-flow"><span>Tableau inicial</span><b>→</b><span>Crear W = −ΣA</span><b>→</b><span>Ajustar la fila de W con la base actual</span><b>→</b><span>Iterar Fase I</span></div>
       <div class="phase-grid">
@@ -1192,8 +1205,8 @@ function renderStage(it, idx, columns) {
         <div class="phase-procedure-head"><strong>¿Cómo se modificó la fila?</strong><span>Se hace canónica respecto de la base actual</span></div>
         <p>Primero se construye <strong>W = −ΣA</strong>. Como una variable artificial puede estar ya en la base, su coeficiente no puede quedar distinto de cero en la fila objetivo. Por eso se usa su fila básica para ajustar W.</p>
         <div class="phase-restoration-list">
-          <div class="phase-restoration-step"><span>1</span><div><strong>Se construye la fila de W.</strong><div class="phase-math-scroll">${rowVectorLabel(it.phase1ObjectiveBefore || oldRow)}</div></div></div>
-          ${(it.phase1AdjustmentSteps || []).map((step, index) => `<div class="phase-restoration-step"><span>${index + 2}</span><div><strong>Se hace cero el coeficiente de ${escapeHtml(step.rowLabel)} en W usando su fila básica.</strong><div class="phase-operation">W ← W ${step.coefficient < 0 ? '−' : '+'} ${mathFraction(Math.abs(step.coefficient))}(${escapeHtml(step.rowLabel)})</div><small>Aquí ${escapeHtml(step.rowLabel)} es a la vez la variable artificial básica y la etiqueta de la fila que se utiliza. La operación real es W ← W + (${formatNumber(step.coefficient)})·fila básica, elegida para hacer cero ese coeficiente. La operación modifica W columna por columna; la etiqueta de esa fila solo cambia si después un pivote hace entrar otra variable a la base.</small>${renderObjectiveArithmeticDetails(step)}<div class="phase-math-scroll">${rowVectorLabel(step.result)}</div></div></div>`).join('')}
+          <div class="phase-restoration-step"><span>1</span><div><strong>Se construye la fila inicial de W.</strong><div class="phase-operation">W = −A₁ − A₂</div><small>Primero se define el objetivo auxiliar para minimizar la suma de las variables artificiales. Al llevarlo al formato de ecuación del tableau: <strong>W + A₁ + A₂ = 0</strong>. Por eso, en la <strong>fila inicial de W</strong>, las <strong>columnas</strong> de A₁ y A₂ reciben 1 y las demás columnas parten en 0.</small><div class="phase-math-scroll">${rowVectorLabel(it.phase1ObjectiveBefore || oldRow)}</div><small>Es la representación inicial del objetivo; <strong>todavía no es la fila de W en forma canónica respecto de la base</strong>.</small><div class="phase-column-guide"><strong>Lectura:</strong> A₁ y A₂ aquí son <strong>columnas</strong>; las filas básicas A₁ y A₂ se usan después para ajustar W.</div></div></div>
+          ${(it.phase1AdjustmentSteps || []).map((step, index) => `<div class="phase-restoration-step"><span>${index + 2}</span><div><strong>Se hace cero el coeficiente de ${escapeHtml(step.rowLabel)} en W usando su fila básica.</strong><div class="phase-operation">W ← W ${step.coefficient < 0 ? '−' : '+'} ${mathFraction(Math.abs(step.coefficient))}(${escapeHtml(step.rowLabel)})</div><small>Se usa la <strong>fila básica de ${escapeHtml(step.rowLabel)}</strong> para hacer cero el coeficiente de la <strong>columna ${escapeHtml(step.rowLabel)}</strong>.</small>${renderObjectiveArithmeticDetails(step)}<div class="phase-math-scroll">${rowVectorLabel(step.result)}</div></div></div>`).join('')}
         </div>
       </div>
       <p class="phase-note">La fila cambia porque <strong>ya no se está optimizando Z</strong>; durante Fase I el objetivo temporal es reducir las variables artificiales hasta comprobar que el problema es factible. La tabla muestra W ya ajustada a la base actual.</p>
@@ -1205,22 +1218,22 @@ function renderStage(it, idx, columns) {
     details = `<div class="phase-transition">
       <div class="phase-transition-head"><span class="phase-kicker">FASE II · CAMBIO DE OBJETIVO</span><strong>¿Por qué volvió a cambiar la fila de Z?</strong></div>
       <p>Fase I ya comprobó la factibilidad: la suma mínima de las variables artificiales es cero. Ahora se abandona la función auxiliar y se recupera la función objetivo original del problema.</p>
-      <div class="phase-flow"><span>Fin de Fase I</span><b>→</b><span>Retirar la función W</span><b>→</b><span>Restaurar Z original</span><b>→</b><span>Reajustar Z con la base actual</span><b>→</b><span>Continuar Simplex</span></div>
+      <div class="phase-flow"><span>Fin de Fase I</span><b>→</b><span>Retirar W y A</span><b>→</b><span>Restaurar Z original</span><b>→</b><span>Reajustar Z con la base actual</span><b>→</b><span>Continuar Simplex</span></div>
       <div class="phase-grid">
-        <div><span>Artificiales usadas en Fase I</span><strong>${arts || 'Ninguna'}</strong></div>
+        <div><span>Artificiales usadas en Fase I</span><strong>${arts || 'Ninguna'}</strong><small>Se eliminan del tableau al comenzar Fase II porque ya no pertenecen al modelo original.</small></div>
         <div class="phase-objective-card"><span>Objetivo recuperado</span><div class="phase-objective-equation">${buildObjectiveEquation(currentLastProblem || {type:'max', objective:[]})}</div></div>
       </div>
       <div class="phase-tableau-change" aria-label="Cambio de la fila objetivo durante Fase II">
-        <div class="phase-row-card"><span>Fila de W / tableau anterior</span>${rowVectorLabel(oldRow)}</div>
+        <div class="phase-row-card"><span>Fila de W / tableau anterior</span>${rowVectorLabel(oldRow, columns, { hideArtificial: true })}</div>
         <b class="phase-row-arrow" aria-hidden="true">→</b>
-        <div class="phase-row-card"><span>Fila de Z ajustada a la base actual</span>${rowVectorLabel(newRow)}</div>
+        <div class="phase-row-card"><span>Fila de Z ajustada a la base actual</span>${rowVectorLabel(newRow, columns, { hideArtificial: true })}</div>
       </div>
       <div class="phase-explanation">
         <div class="phase-explanation-head"><strong>¿Por qué la fila de Z ya no se ve igual que la original?</strong><span>Recuperar Z no significa copiarla sin cambios.</span></div>
         <p>La función objetivo original vuelve a ser <strong>${buildObjectiveEquation(currentLastProblem || {type:'max', objective:[]})}</strong>, pero el tableau ya tiene una <strong>base distinta</strong> después de Fase I. Para continuar con Simplex, la fila de Z debe quedar en forma canónica: el coeficiente de cada variable que ya está en la base debe hacerse cero.</p>
         <div class="phase-restoration-list">
-          <div class="phase-restoration-step"><span>1</span><div><strong>Se parte de la fila original de Z.</strong><div class="phase-math-scroll">${rowVectorLabel(it.originalObjectiveRow || oldRow)}</div><small>Esta es la función objetivo original expresada en la convención del tableau. Todavía no está necesariamente en forma canónica respecto de la base que quedó después de Fase I.</small></div></div>
-          ${(it.restorationSteps || []).map((step, index) => `<div class="phase-restoration-step"><span>${index + 2}</span><div><strong>Se hace cero el coeficiente de ${escapeHtml(step.rowLabel)} en Z usando su fila básica.</strong><div class="phase-operation">Z ← Z ${step.coefficient < 0 ? '−' : '+'} ${mathFraction(Math.abs(step.coefficient))}(${escapeHtml(step.rowLabel)})</div><small><strong>${escapeHtml(step.rowLabel)}</strong> es la variable básica que actualmente ocupa esa fila. La operación real es Z ← Z + (${formatNumber(step.coefficient)})·fila básica; así el coeficiente de ${escapeHtml(step.rowLabel)} queda en cero. Si un pivote posterior cambia la variable básica de esa fila, la etiqueta también cambia.</small>${renderObjectiveArithmeticDetails(step)}<div class="phase-math-scroll">${rowVectorLabel(step.result)}</div></div></div>`).join('')}
+          <div class="phase-restoration-step"><span>1</span><div><strong>Se parte de la fila original de Z.</strong><div class="phase-math-scroll">${rowVectorLabel(it.originalObjectiveRow || oldRow, columns, { hideArtificial: true })}</div><small>La fila de Z todavía no está necesariamente en forma canónica respecto de la base que quedó después de Fase I.</small></div></div>
+          ${(it.restorationSteps || []).map((step, index) => `<div class="phase-restoration-step"><span>${index + 2}</span><div><strong>Se hace cero el coeficiente de ${escapeHtml(step.rowLabel)} en Z usando su fila básica.</strong><div class="phase-operation">Z ← Z ${step.coefficient < 0 ? '−' : '+'} ${mathFraction(Math.abs(step.coefficient))}(${escapeHtml(step.rowLabel)})</div><small>Se usa la <strong>fila básica de ${escapeHtml(step.rowLabel)}</strong> para hacer cero el coeficiente de la <strong>columna ${escapeHtml(step.rowLabel)}</strong> en Z.</small>${renderObjectiveArithmeticDetails(step)}<div class="phase-math-scroll">${rowVectorLabel(step.result, columns, { hideArtificial: true })}</div></div></div>`).join('')}
         </div>
         <p class="phase-note">${(() => {
           const steps = it.restorationSteps || [];
@@ -1234,7 +1247,7 @@ function renderStage(it, idx, columns) {
     const baseNames = it.base.map(escapeHtml).join(', ');
     details = `<div class="phase-iteration-explanation">
       <div class="phase-iteration-head"><strong>¿Qué estamos haciendo en Fase I?</strong><span>Comprobar factibilidad</span></div>
-      <p>Fase I todavía no busca el valor óptimo de <strong>Z</strong>. Primero intenta eliminar las variables artificiales de la base y llevar su suma a cero. En este punto, las filas reciben el nombre de la variable que actualmente es básica.</p>
+      <p>Fase I ya no optimiza <strong>Z</strong>: la fila objetivo del tableau se representa como <strong>W</strong>, una función auxiliar que busca llevar a cero la suma de las variables artificiales. Por ser temporal, la columna visual de <strong>Z</strong> se oculta durante esta fase; la fila objetivo se identifica como <strong>W</strong> en la columna Base. Primero intenta eliminar las variables artificiales de la base y llevar su suma a cero. En este punto, las filas reciben el nombre de la variable que actualmente es básica.</p>
       <div class="base-reading"><strong>Base actual:</strong> ${baseNames || 'sin filas básicas'}</div>
       <p class="phase-iteration-note">Cuando una variable entra y otra sale, <strong>la fila no desaparece</strong>: cambia la etiqueta de la variable básica que la representa. Así se entiende por qué una fila que antes se llamaba A1 puede pasar a llamarse X2 después del pivote.</p>
     </div>`;
@@ -1242,16 +1255,29 @@ function renderStage(it, idx, columns) {
     details = `<div class="callout"><strong>Fase II:</strong> se restaura la función objetivo original y se continúa con Simplex.</div>`;
   }
 
-  const headerNames = ['Z', ...columns.map((c) => c.name)];
+  const stageText = String(it.stage || '');
+  const isPhase1Tableau = stageText.startsWith('Fase I') && !stageText.startsWith('Fase II') && !stageText.includes('tableau inicial');
+  const objectiveLabel = isPhase1Tableau ? 'W' : 'Z';
+  const hideArtificialColumns = stageText.includes('Fase II');
+  const visibleColumns = columns.map((c, index) => ({ ...c, index })).filter(c => !(hideArtificialColumns && c.kind === 'artificial'));
   const body = it.tableau.map((row, r) => {
-    const baseLabel = r === 0 ? 'Z' : it.base[r - 1] || '—';
+    const baseLabel = r === 0 ? objectiveLabel : it.base[r - 1] || '—';
     const zCell = r === 0 ? 1 : 0;
-    const cells = row.map((value, c) => {
-      const pivotClass = it.pivot && it.pivot.row === r && it.pivot.col === c ? 'pivot-cell' : '';
+    const cells = visibleColumns.map((meta) => {
+      const value = row[meta.index];
+      const pivotClass = it.pivot && it.pivot.row === r && it.pivot.col === meta.index ? 'pivot-cell' : '';
       return `<td class="fraction ${pivotClass}">${escapeHtml(formatNumber(value))}</td>`;
     }).join('');
-    return `<tr><td class="base-cell">${escapeHtml(baseLabel)}</td><td class="fraction">${zCell}</td>${cells}</tr>`;
+    const solution = row[row.length - 1];
+    return `<tr><td class="base-cell">${escapeHtml(baseLabel)}</td><td class="fraction">${zCell}</td>${cells}<td class="fraction">${escapeHtml(formatNumber(solution))}</td></tr>`;
   }).join('');
+  // La columna visual de Z no forma parte de las variables del modelo: es una
+  // convención de presentación de la función objetivo. Durante Fase I el objetivo
+  // original Z está temporalmente fuera de uso, así que ocultamos esa columna para
+  // que no compita visualmente con W. La fila objetivo temporal sigue identificada
+  // como W en la columna Base. En Fase II la columna Z vuelve a mostrarse.
+  const showObjectiveColumn = !isPhase1Tableau;
+  const columnCount = visibleColumns.length + (showObjectiveColumn ? 1 : 0);
 
   const learningVisible = it.pivot ? 'checked' : '';
   return `<article class="iteration">
@@ -1259,7 +1285,17 @@ function renderStage(it, idx, columns) {
     ${prepBlock}
     ${details}
     <div class="table-caption"><span>${it.pivot ? `Después de aplicar ${escapeHtml(it.pivot.entering)} como variable entrante y ${escapeHtml(it.pivot.leaving)} como saliente.` : 'Estado del tableau en este punto del procedimiento.'}</span></div>
-    <div class="table-wrap"><table aria-label="Tableau Simplex"><thead><tr><th>Base</th>${headerNames.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}<th>Solución</th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="table-wrap"><table aria-label="Tableau Simplex"><thead><tr class="table-group-row"><th rowspan=2 class="table-group-base">Base<br><small>Filas de la base</small></th><th colspan="${columnCount}" class="table-group-columns">Columnas del tableau</th><th rowspan=2 class="table-group-solution">Solución<br><small>Lado derecho</small></th></tr><tr>${showObjectiveColumn ? `<th>${objectiveLabel}</th>` : ''}${visibleColumns.map((c) => `<th title="${escapeHtml(c.kind === 'decision' ? 'Variable de decisión' : c.kind === 'slack' ? 'Variable de holgura' : c.kind === 'surplus' ? 'Variable de exceso' : 'Variable artificial')}">${escapeHtml(c.name)}</th>`).join('')}</tr></thead><tbody>${it.tableau.map((row, r) => {
+      const baseLabel = r === 0 ? objectiveLabel : it.base[r - 1] || '—';
+      const zCell = showObjectiveColumn ? (r === 0 ? 1 : 0) : '';
+      const cells = visibleColumns.map((meta) => {
+        const value = row[meta.index];
+        const pivotClass = it.pivot && it.pivot.row === r && it.pivot.col === meta.index ? 'pivot-cell' : '';
+        return `<td class="fraction ${pivotClass}">${escapeHtml(formatNumber(value))}</td>`;
+      }).join('');
+      const solution = row[row.length - 1];
+      return `<tr><td class="base-cell">${escapeHtml(baseLabel)}</td>${showObjectiveColumn ? `<td class="fraction">${zCell}</td>` : ''}${cells}<td class="fraction">${escapeHtml(formatNumber(solution))}</td></tr>`;
+    }).join('')}</tbody></table></div>
   </article>`;
 }
 

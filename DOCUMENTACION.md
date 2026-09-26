@@ -1,4 +1,4 @@
-# IO Solver v5.0 — Documentación técnica y guía de explicación
+# IO Solver v6.0 — Documentación técnica y guía de explicación
 
 ## 1. ¿Qué es el programa?
 
@@ -583,24 +583,24 @@ Porque esta implementación gráfica trabaja con exactamente dos variables y con
 
 ---
 
-## Versión pública actual: v5.0
+## Versión pública actual: v6.0
 
-La versión 5.0 consolida la promoción estable de la línea v4.x y mantiene un sistema de diagnóstico del procedimiento. El módulo Simplex conserva su motor de resolución, método de dos fases, explicación educativa, verificación, importación de PDF/texto y método gráfico, y ahora explica las condiciones especiales que hacen que una iteración termine o requiera atención.
+La Versión 6.0 consolida la promoción estable de la línea v4.x y mantiene un sistema de diagnóstico del procedimiento. El módulo Simplex conserva su motor de resolución, método de dos fases, explicación educativa, verificación, importación de PDF/texto y método gráfico, y ahora explica las condiciones especiales que hacen que una iteración termine o requiera atención.
 
 Las referencias a `v3.x` dentro de esta documentación corresponden al historial real de desarrollo y no se renumeran, para conservar la trazabilidad de las correcciones.
 
 La siguiente etapa del proyecto puede incorporar progresivamente otros contenidos del curso de Investigación de Operaciones como módulos independientes, sin alterar el núcleo estable de Simplex.
 
-## 22.2 Actualización v5.0 · pruebas de estrés e importación robusta y consolidación
+## 22.2 Actualización v6.0 · pruebas de estrés e importación robusta y consolidación
 
-## 22.3 Consolidación v5.0 · dominio de no negatividad y advertencias no bloqueantes
+## 22.3 Consolidación v6.0 · dominio de no negatividad y advertencias no bloqueantes
 
 La ronda de estrés detectó que algunas extracciones de PDF todavía podían convertir la declaración `X₁, X₂ ≥ 0` en una restricción equivalente como `X₁ + X₂ ≥ 0`. Esta revisión separa explícitamente el dominio de no negatividad de las restricciones estructurales y conserva la casilla de no negatividad activa por defecto.
 
 También se evita bloquear innecesariamente modelos que contienen una función objetivo nula o una restricción con todos sus coeficientes en cero. Estos casos se muestran como condiciones matemáticas en el diagnóstico y se deja que el procedimiento determine si la condición es redundante o infactible. Un RHS negativo se puede importar con una advertencia para que el usuario pueda resolverlo y comprobar la factibilidad.
 
 
-La versión 5.0 consolida el trabajo de diagnóstico de v4.1 y v4.2 a partir de un banco de pruebas con modelos normales y casos especiales.
+La Versión 6.0 consolida el trabajo de diagnóstico de v4.1 y v4.2 a partir de un banco de pruebas con modelos normales y casos especiales.
 
 Cambios principales:
 - Las líneas como `X1, X2 ≥ 0` se reconocen como **dominio de no negatividad** y no se agregan como restricciones del modelo.
@@ -829,7 +829,7 @@ El objetivo visual es acercar la experiencia a una aplicación moderna sin sacri
 
 Durante las versiones 2.x se realizaron iteraciones específicas de funcionalidad PERT / CPM, visualización, análisis estadístico, reportes y refinamiento Liquid Glass.
 
-La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **5.0**.
+La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **5.1**.
 
 
 ## 29. Comprobación final de la solución (v3.3)

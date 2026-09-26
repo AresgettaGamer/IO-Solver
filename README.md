@@ -1,12 +1,12 @@
-# IO Solver v5.0
+# IO Solver v6.0
 
 Herramienta educativa de **Investigación de Operaciones** para navegador, organizada en dos módulos independientes: **Simplex** y **PERT / CPM**.
 
 El módulo **Simplex** es el componente principal del proyecto y concentra la resolución de programación lineal, el procedimiento paso a paso y las herramientas de formulación/importación. **PERT / CPM** es un módulo complementario para ampliar la demostración durante la exposición.
 
-## v5.0 — promoción de la línea Simplex
+## v6.0 — promoción de la línea Simplex
 
-La versión 5.0 toma la línea v4.2 como base para cerrar los hallazgos de la ronda de estrés. Corrige la última fuga de la condición de no negatividad: `X₁, X₂ ≥ 0` se conserva como dominio y nunca se agrega como restricción estructural. Además, los modelos con RHS negativo pueden importarse con una advertencia no bloqueante para comprobar la factibilidad desde Resolver, y las funciones objetivo nulas o restricciones de coeficientes cero se tratan como casos matemáticos diagnosticables en lugar de bloquear automáticamente la ejecución.
+La Versión 6.0 toma la línea anterior como base para cerrar los hallazgos de la ronda de estrés. Corrige la última fuga de la condición de no negatividad: `X₁, X₂ ≥ 0` se conserva como dominio y nunca se agrega como restricción estructural. Además, los modelos con RHS negativo pueden importarse con una advertencia no bloqueante para comprobar la factibilidad desde Resolver, y las funciones objetivo nulas o restricciones de coeficientes cero se tratan como casos matemáticos diagnosticables en lugar de bloquear automáticamente la ejecución.
 
 Incluye, entre otras mejoras acumuladas:
 
@@ -21,7 +21,7 @@ Incluye, entre otras mejoras acumuladas:
 - Diagnóstico visual de infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates en la prueba de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes numéricamente pequeños.
 - Módulo PERT / CPM ya integrado como complemento.
 
-**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v5.0**.
+**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v6.0**.
 
 ## PERT / CPM — fase 1
 
