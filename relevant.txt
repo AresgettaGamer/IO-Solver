@@ -1,0 +1,441 @@
+  return `<div class="print-section"><h2>Modelo matemático</h2><p><strong>${problem.type === 'max' ? 'Maximizar' : 'Minimizar'} Z = ${escapeHtml(obj)}</strong></p><table><thead><tr><th>Restricción</th>${problem.objective.map((_,i)=>`<th>X${i+1}</th>`).join('')}<th>Tipo</th><th>Solución</th></tr></thead><tbody>${rows}</tbody></table><p>Dominio: ${problem.nonnegative ? 'X ≥ 0' : 'variables libres'}</p></div>`;
+}
+function resultSummaryHTML(problem, result) {
+  const solution = result.solution;
+  const z = solution ? evaluateOriginalObjective(problem, solution) : null;
+  const cards = solution
+    ? [...solution.variables.map((v,i)=>`<div class="print-card"><span>X${i+1}</span><strong>${escapeHtml(formatCompactNumber(v))}</strong></div>`), `<div class="print-card"><span>Z</span><strong>${escapeHtml(formatCompactNumber(z))}</strong></div>`]
+    : [`<div class="print-card"><span>Estado</span><strong>${escapeHtml(result.status)}</strong></div>`];
+  return `<div class="print-summary-grid">${cards.join('')}</div>`;
+}
+function buildSimplexPrintReport(problem, result, title = currentProjectName(), delivery = false) {
+  const graphState = graphCapability(problem, result);
+  const graph = graphState.available ? (renderGraphProcedure(problem, graphState.vertices) + renderGraph(problem, result, graphZRange(problem, graphState.vertices).max)) : '';
+  const diagnostic = renderDiagnosticPanel(result.diagnostics || []);
+  const process = (result.iterations || []).map((it,idx)=>renderStage(it,idx,result.columns)).join('');
+  return `<article class="print-report-page"><div class="print-cover"><p class="eyebrow">IO Solver · Investigación de Operaciones</p><h1>${escapeHtml(title)}</h1><p>Reporte ${delivery ? `de entrega · Ejercicio ${escapeHtml(title)}` : 'Simplex'} · ${new Date().toLocaleDateString('es-MX')}</p></div><div class="print-section"><h2>Resultado</h2><p><strong>${escapeHtml(result.status === 'optimal' ? 'Solución óptima encontrada' : result.status)}</strong></p><p>${escapeHtml(result.message || '')}</p>${resultSummaryHTML(problem,result)}</div>${modelReportHTML(problem)}${diagnostic ? `<div class="print-section"><h2>Diagnóstico</h2>${diagnostic}</div>` : ''}${graph ? `<div class="print-section"><h2>Método gráfico</h2>${graph}</div>` : ''}<div class="print-section"><h2>Procedimiento de resolución</h2>${process}</div><div class="report-footer">IO Solver · Reporte generado desde el módulo Simplex.</div></article>`;
+}
+function buildSimplexDeliveryReport(items) {
+  const date = new Date().toLocaleDateString('es-MX');
+  const index = items.map((item, i) => `<li><strong>${i + 1}. ${escapeHtml(item.name || `Ejercicio ${i + 1}`)}</strong><span>${escapeHtml(item.result?.status || 'sin resultado')}</span></li>`).join('');
+  const exercises = items.map((item, i) => `<section class="delivery-exercise" data-exercise-number="${i + 1}">
+    <div class="delivery-exercise-meta"><span>Ejercicio ${i + 1} de ${items.length}</span><span>${escapeHtml(item.result?.status || 'sin resultado')}</span></div>
+    ${buildSimplexPrintReport(item.problem, item.result, item.name || `Ejercicio ${i + 1}`, true)}
+  </section>`).join('');
+  return `<article class="print-report-page delivery-report-cover">
+    <div class="print-cover">
+      <p class="eyebrow">IO Solver · Investigación de Operaciones</p>
+      <h1>Entrega de ejercicios</h1>
+      <p>Problemario de Programación Lineal · ${date}</p>
+    </div>
+    <div class="print-section">
+      <h2>Contenido</h2>
+      <ol class="delivery-index">${index}</ol>
+      <p class="delivery-index-note">${items.length} ejercicio${items.length === 1 ? '' : 's'} incluido${items.length === 1 ? '' : 's'}.</p>
+    </div>
+    <div class="report-footer">IO Solver · Documento preparado desde el modo tarea.</div>
+  </article>${exercises}`;
+}
+
+function simplexDeliveryPrintStyles() {
+  return `
+    @page { size: Letter portrait; margin: 0; }
+    html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100%; background: #fff !important; }
+    body { color: #172033 !important; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif !important; font-size: 10.5pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .simplex-print-report {
+      display: block !important;
+      box-sizing: border-box !important;
+      width: 8.5in !important;
+      max-width: 100% !important;
+      margin: 0 auto !important;
+      padding: 0.58in 0.62in 0.62in !important;
+      background: #fff !important;
+      color: #172033 !important;
+      overflow: visible !important;
+    }
+    .print-report-page,
+    .delivery-exercise {
+      box-sizing: border-box !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+    }
+    .print-report-page { padding: 0 !important; }
+    .print-report-page .print-cover { border-bottom: 2px solid #d8dee8; padding: 0 0 0.20in; margin: 0 0 0.18in; }
+    .delivery-report-cover { break-after: page; page-break-after: always; }
+    .delivery-exercise { break-before: page; page-break-before: always; display: block; }
+    .delivery-exercise:first-of-type { break-before: page; page-break-before: always; }
+    .delivery-exercise-meta {
+      display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;
+      margin:0 0 0.16in; padding: 0.06in 0 0.08in;
+      border-bottom: 1px solid #e5eaf0; color:#68758a; font-size:8.5pt; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+    }
+    h1, h2, h3, p, li, strong, span, small {
+      max-width: 100% !important;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    h1, h2, h3 { color:#172033 !important; break-after: avoid-page; page-break-after: avoid; }
+    h1 { font-size: 22pt !important; line-height:1.12; margin:0 0 0.10in; }
+    h2 { font-size: 14pt !important; line-height:1.2; margin-top: 0.14in; }
+    h3 { font-size: 11pt !important; line-height:1.25; }
+    p, li { orphans: 3; widows: 3; }
+    p { margin-top: 0.07in; margin-bottom: 0.07in; }
+    .print-section { margin: 0.14in 0 !important; break-inside: auto; page-break-inside: auto; }
+    .print-summary-grid { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap: 0.08in !important; width:100% !important; }
+    .print-card { min-width:0 !important; box-sizing:border-box !important; border:1px solid #d8dee8 !important; border-radius:7px !important; padding:0.07in 0.08in !important; background:#f7f9fb !important; break-inside:avoid-page; }
+    .print-card span { color:#68758a !important; font-size:7.5pt !important; }
+    .print-card strong { font-size:11pt !important; }
+    .simplex-print-report table { width:100% !important; min-width:0 !important; max-width:100% !important; box-sizing:border-box !important; border-collapse:collapse !important; font-size:7.7pt !important; table-layout:fixed !important; }
+    .simplex-print-report thead { display:table-header-group; }
+    .simplex-print-report tr { break-inside:avoid; page-break-inside:avoid; }
+    .simplex-print-report th, .simplex-print-report td { border:1px solid #d5deea !important; padding:0.035in 0.045in !important; text-align:left; vertical-align:top; overflow-wrap:anywhere; word-break:break-word; white-space:normal !important; }
+    .simplex-print-report th { background:#eef3f8 !important; }
+    .table-wrap { overflow: visible !important; width:100% !important; max-width:100% !important; border-radius: 0 !important; break-inside:auto; }
+    .graph-wrap, .graph-procedure, .decision-grid, .decision-card, .callout, .base-change-callout, .phase-transition, .phase-iteration-explanation, .phase-procedure, .phase-tableau-change, .phase-row-card, .phase-grid, .phase-grid > div, .phase-restoration-step, .preparation-block, .arithmetic-details, .calc-step {
+      break-inside: avoid-page; page-break-inside: avoid;
+    }
+    .graph-wrap { width:100% !important; max-width:100% !important; overflow:visible !important; }
+    .graph-wrap svg { width:100% !important; min-width:0 !important; max-width:100% !important; height:auto !important; display:block; }
+    .graph-procedure[open] > summary { margin-bottom: 0.05in; }
+    .graph-procedure-body, .phase-procedure, .phase-restoration-step, .callout, .decision-card { max-width:100% !important; }
+    details { break-inside:auto; }
+    .step-flow, .steps, .phase-flow { break-inside:auto !important; }
+    .phase-math-scroll, .phase-operation { white-space:normal !important; overflow:visible !important; overflow-wrap:anywhere !important; word-break:break-word !important; max-width:100% !important; }
+    .calc-step { margin: 0.08in 0 !important; }
+    .report-footer { margin-top: 0.14in; padding-top: 0.07in; border-top:1px solid #e5eaf0; color:#7a8798 !important; font-size:7.5pt !important; }
+    .delivery-index { margin: 0.10in 0; padding-left: 0.24in; }
+    .delivery-index li { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.12in; padding: 0.07in 0; border-bottom:1px solid #e5eaf0; }
+    .delivery-index li span { color:#68758a !important; font-size:8pt !important; }
+    .delivery-index-note { color:#68758a !important; font-size:8.5pt !important; }
+    .hidden { display:none !important; }
+    .print-page-break { break-before:page !important; page-break-before:always !important; height:0 !important; }
+    @media print {
+      .simplex-print-report { overflow: visible !important; }
+      .simplex-print-report .graph-wrap svg { break-inside:avoid; }
+    }
+  `;
+}
+function openSimplexDeliveryPrint(items) {
+  const validItems = Array.isArray(items) ? items.filter(item => item?.problem && item?.result) : [];
+  if (!validItems.length) {
+    showMessage('La entrega no contiene ejercicios resueltos válidos.', 'error');
+    return;
+  }
+
+  const printWindow = window.open('', '_blank', 'width=980,height=900');
+  if (!printWindow) {
+    showMessage('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para IO Solver e inténtalo de nuevo.', 'error');
+    return;
+  }
+
+  try {
+    const stylesheetHref = new URL('style.css', document.baseURI).href;
+    const report = buildSimplexDeliveryReport(validItems);
+    const safeTitle = escapeHtml(`IO Solver · Entrega · ${new Date().toLocaleDateString('es-MX')}`);
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${safeTitle}</title><base href="${escapeHtml(document.baseURI)}"><link rel="stylesheet" href="${escapeHtml(stylesheetHref)}"><style>${simplexDeliveryPrintStyles()}</style></head><body class="delivery-print-document"><main class="simplex-print-report">${report}</main></body></html>`);
+    printWindow.document.close();
+
+    let printed = false;
+    const triggerPrint = () => {
+      if (printed || printWindow.closed) return;
+      printed = true;
+      printWindow.document.querySelectorAll('details').forEach(detail => { detail.open = true; });
+      printWindow.focus();
+      setTimeout(() => {
+        try { printWindow.print(); }
+        catch (_) { /* The browser owns the print UI. */ }
+      }, 150);
+    };
+    printWindow.addEventListener('load', triggerPrint, { once: true });
+    setTimeout(triggerPrint, 700);
+    showMessage(`Preparando la entrega (${validItems.length} ejercicios)…`, 'ok');
+  } catch (error) {
+    try { printWindow.close(); } catch (_) {}
+    showMessage(`No se pudo preparar la entrega: ${error?.message || error}`, 'error');
+  }
+}
+
+function printSimplexReport(items, mode = 'single') {
+  if (!Array.isArray(items) || !items.length) {
+    showMessage('Resuelve o agrega al menos un ejercicio antes de generar el reporte.', 'error');
+    return;
+  }
+  if (!simplexTools.printReport) {
+    showMessage('No se encontró el área de impresión del reporte.', 'error');
+    return;
+  }
+
+  try {
+    const validItems = items.filter(item => item?.problem && item?.result);
+    if (!validItems.length) {
+      showMessage('La entrega no contiene ejercicios resueltos válidos.', 'error');
+      return;
+    }
+    simplexTools.printReport.innerHTML = mode === 'delivery'
+      ? buildSimplexDeliveryReport(validItems)
+      : validItems.map((item, i) => buildSimplexPrintReport(item.problem, item.result, item.name || `Ejercicio ${i + 1}`, validItems.length > 1)).join('<div class="print-page-break"></div>');
+    document.body.classList.add('print-simplex');
+    const cleanup = () => {
+      document.body.classList.remove('print-simplex');
+      simplexTools.printReport.innerHTML = '';
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  } catch (error) {
+    document.body.classList.remove('print-simplex');
+    simplexTools.printReport.innerHTML = '';
+    showMessage(`No se pudo generar la entrega: ${error?.message || error}`, 'error');
+  }
+}
+function auditSimplexProcedure(problem, result) {
+  const findings = [];
+  const iterations = Array.isArray(result?.iterations) ? result.iterations : [];
+  const columns = Array.isArray(result?.columns) ? result.columns : [];
+  const scaleValues = [];
+  iterations.forEach(it => {
+    (it?.tableau || []).forEach(row => (row || []).forEach(v => { if (Number.isFinite(v)) scaleValues.push(v); }));
+    (it?.pivotSteps || []).forEach(step => (step?.after || []).forEach(v => { if (Number.isFinite(v)) scaleValues.push(v); }));
+  });
+  const tolerance = Math.max(1e-8, verifierTolerance(scaleValues));
+  const close = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(a), Math.abs(b));
+  const add = (level, title, detail, iteration = null) => findings.push({ level, title, detail, iteration });
+  const ok = (title, detail, iteration = null) => add('ok', title, detail, iteration);
+  const warn = (title, detail, iteration = null) => add('warning', title, detail, iteration);
+  const fail = (title, detail, iteration = null) => add('danger', title, detail, iteration);
+
+  if (!problem || !result) {
+    fail('No hay resolución para auditar', 'Resuelve un ejercicio antes de ejecutar la auditoría.');
+    return { findings, tolerance, score: { ok: 0, warning: 0, danger: 1 }, passed: false };
+  }
+  if (!iterations.length) {
+    fail('No se encontró el procedimiento', 'El resultado no contiene tableaux o iteraciones almacenadas.');
+    return { findings, tolerance, score: { ok: 0, warning: 0, danger: 1 }, passed: false };
+  }
+
+  let totalChecks = 0;
+  let lastTableau = null;
+  let lastBase = null;
+  let previousState = null;
+  const check = (condition, goodTitle, goodDetail, badTitle, badDetail, iteration = null) => {
+    totalChecks += 1;
+    if (condition) ok(goodTitle, goodDetail, iteration);
+    else fail(badTitle, badDetail, iteration);
+  };
+
+  iterations.forEach((it, idx) => {
+    const label = it.iterationNumber ?? idx;
+    const tableau = Array.isArray(it.tableau) ? it.tableau : null;
+    const base = Array.isArray(it.base) ? it.base : null;
+    const stage = String(it.stage || 'Procedimiento');
+    if (!tableau || !tableau.length) {
+      fail('Tableau ausente', 'No se encontró una tabla válida en este paso.', label);
+      return;
+    }
+    const widths = tableau.map(row => Array.isArray(row) ? row.length : 0);
+    const rectangular = widths.every(w => w === widths[0] && w > 0);
+    check(rectangular, 'Tableau estructuralmente consistente', 'Todas las filas tienen el mismo número de columnas.', 'Tableau inconsistente', 'Las filas no tienen el mismo número de columnas.', label);
+    if (!base || base.length !== Math.max(0, tableau.length - 1)) {
+      fail('Base inconsistente', `Se esperaban ${Math.max(0, tableau.length - 1)} filas básicas y se encontraron ${base?.length ?? 0}.`, label);
+    } else {
+      ok('Base y tableau tienen dimensiones compatibles', `${base.length} fila(s) básica(s) para ${Math.max(0, tableau.length - 1)} restricción(es).`, label);
+    }
+    if (rectangular && columns.length && tableau[0].length !== columns.length + 1) {
+      fail('Columnas del tableau no coinciden', `El tableau tiene ${tableau[0].length - 1} columnas de variables y la estructura registra ${columns.length}.`, label);
+    }
+
+    if (it.type === 'iteration' && it.pivot && Array.isArray(it.before)) {
+      const before = it.before;
+      const pivot = it.pivot;
+      const rowsBefore = before.length;
+      const colsBefore = before[0]?.length || 0;
+      const validCoords = Number.isInteger(pivot.row) && Number.isInteger(pivot.col) && pivot.row > 0 && pivot.row < rowsBefore && pivot.col >= 0 && pivot.col < colsBefore - 1;
+      check(validCoords, 'Coordenadas del pivote válidas', `Fila ${pivot.row}, columna ${pivot.col}.`, 'Coordenadas del pivote inválidas', 'El pivote apunta fuera del tableau anterior.', label);
+      if (!validCoords) return;
+
+      const actualPivot = before[pivot.row][pivot.col];
+      check(close(actualPivot, pivot.value), 'Elemento pivote coincide', `El pivote registrado (${formatNumber(pivot.value)}) coincide con el valor del tableau (${formatNumber(actualPivot)}).`, 'Elemento pivote no coincide', `Se registró ${formatNumber(pivot.value)} pero el tableau contenía ${formatNumber(actualPivot)}.`, label);
+
+      const enteringColumn = columns[pivot.col];
+      const entering = enteringColumn?.name || '';
+      check(Boolean(entering) && entering === pivot.entering, 'Variable entrante coincide con su columna', `${entering} corresponde a la columna seleccionada.`, 'Variable entrante inconsistente', `La columna seleccionada corresponde a ${entering || 'una variable desconocida'}, pero se registró ${pivot.entering || 'sin nombre'}.`, label);
+      const objectiveCoeff = before[0][pivot.col];
+      check(objectiveCoeff < -EPS, 'Variable entrante sigue la regla de mejora', `${entering} tiene coeficiente ${formatNumber(objectiveCoeff)} en la fila objetivo.`, 'Variable entrante no cumple la regla de entrada', `${entering || 'La columna seleccionada'} tiene coeficiente ${formatNumber(objectiveCoeff)}; no es negativo según la convención usada por el motor.`, label);
+
+      const baseBefore = previousState?.base || (idx === 0 ? null : iterations[idx - 1]?.base) || null;
+      if (baseBefore && baseBefore.length > pivot.row - 1) {
+        const expectedLeaving = baseBefore[pivot.row - 1];
+        check(expectedLeaving === pivot.leaving, 'Variable saliente coincide con la base previa', `${expectedLeaving} era la variable básica de esa fila antes del pivote.`, 'Variable saliente inconsistente', `La fila tenía ${expectedLeaving}, pero se registró ${pivot.leaving}.`, label);
+      } else {
+        warn('No se pudo reconstruir la base previa', 'La auditoría no pudo verificar el nombre de la variable saliente en este paso.', label);
+      }
+
+      const ratios = Array.isArray(it.ratios) ? it.ratios : [];
+      const rhsCol = colsBefore - 1;
+      const recomputed = [];
+      for (let r = 1; r < rowsBefore; r += 1) {
+        const coefficient = before[r][pivot.col];
+        const rhs = before[r][rhsCol];
+        const ratio = coefficient > EPS ? rhs / coefficient : null;
+        recomputed.push({ row: r - 1, base: baseBefore?.[r - 1], numerator: rhs, denominator: coefficient, ratio });
+      }
+      const ratioDataOk = recomputed.every((rr) => {
+        const stored = ratios.find(x => x.row === rr.row) || ratios[rr.row];
+        if (!stored) return false;
+        const ratioSame = rr.ratio === null && (stored.ratio === null || stored.ratio === undefined) || close(rr.ratio, stored.ratio);
+        return ratioSame && close(rr.numerator, stored.numerator) && close(rr.denominator, stored.denominator);
+      });
+      check(ratioDataOk, 'Prueba de razón reproducible', 'Los numeradores, denominadores y razones almacenadas coinciden con el tableau anterior.', 'Prueba de razón inconsistente', 'Alguna razón guardada no coincide con los valores del tableau anterior.', label);
+      const validRatios = recomputed.filter(x => x.ratio !== null && Number.isFinite(x.ratio) && x.ratio >= -EPS);
+      if (validRatios.length) {
+        const minRatio = Math.min(...validRatios.map(x => x.ratio));
+        const selected = recomputed.find(x => x.row === pivot.row - 1);
+        check(Boolean(selected && selected.ratio !== null && Math.abs(selected.ratio - minRatio) <= tolerance * Math.max(1, Math.abs(minRatio))), 'Variable saliente respeta la razón mínima', `La fila seleccionada tiene razón ${formatNumber(selected?.ratio)} y es mínima entre las razones válidas.`, 'Variable saliente no respeta la razón mínima', `La fila seleccionada tiene razón ${formatNumber(selected?.ratio)}; la mínima válida era ${formatNumber(minRatio)}.`, label);
+      } else {
+        warn('No hay razones válidas para verificar', 'Este caso puede corresponder a un problema no acotado; se revisará su condición de terminación.', label);
+      }
+
+      const simulated = before.map(row => row.slice());
+      try {
+        const simPivot = simulated[pivot.row][pivot.col];
+        if (Math.abs(simPivot) <= EPS) throw new Error('pivote nulo');
+        for (let c = 0; c < simulated[pivot.row].length; c += 1) simulated[pivot.row][c] /= simPivot;
+        for (let r = 0; r < simulated.length; r += 1) {
+          if (r === pivot.row) continue;
+          const factor = simulated[r][pivot.col];
+          if (Math.abs(factor) <= EPS) continue;
+          for (let c = 0; c < simulated[r].length; c += 1) simulated[r][c] -= factor * simulated[pivot.row][c];
+        }
+        const tableMatches = tableau.length === simulated.length && tableau.every((row, r) => row.length === simulated[r].length && row.every((v, c) => close(v, clean(simulated[r][c]))));
+        check(tableMatches, 'Pivote numéricamente reproducible', 'Aplicando normalización y eliminación se obtiene el mismo tableau almacenado.', 'Pivote numéricamente inconsistente', 'Al reproducir el pivote se obtiene una tabla distinta a la almacenada.', label);
+
+        const pivotColumnCanonical = tableau.every((row, r) => close(row[pivot.col], r === pivot.row ? 1 : 0));
+        check(pivotColumnCanonical, 'Columna pivote queda canónica', 'El elemento pivote queda en 1 y los demás elementos de la columna quedan en 0.', 'Columna pivote no quedó canónica', 'La columna pivote no terminó como vector unidad.', label);
+
+        const steps = Array.isArray(it.pivotSteps) ? it.pivotSteps : [];
+        if (!steps.length) {
+          warn('Pasos educativos no disponibles', 'El motor resolvió el pivote, pero este paso no contiene el desglose educativo almacenado.', label);
+        } else {
+          const normalized = before[pivot.row].map(v => clean(v / simPivot));
+          const normStep = steps[0];
+          const normOk = Array.isArray(normStep.after) && normStep.after.length === normalized.length && normStep.after.every((v, c) => close(v, normalized[c]));
+          check(normOk, 'Normalización educativa coincide', 'La fila pivote mostrada en el procedimiento coincide con la normalización numérica.', 'Normalización educativa inconsistente', 'La fila normalizada mostrada no coincide con la operación real.', label);
+          const eliminationSteps = steps.slice(1);
+          const expectedEliminations = [];
+          for (let r = 0; r < before.length; r += 1) {
+            if (r === pivot.row) continue;
+            const factor = before[r][pivot.col];
+            if (Math.abs(factor) <= EPS) continue;
+            expectedEliminations.push({ r, after: before[r].map((v, c) => clean(v - factor * normalized[c])) });
+          }
+          const elimOk = eliminationSteps.length === expectedEliminations.length && eliminationSteps.every((step, j) => {
+            const expected = expectedEliminations[j].after;
+            return Array.isArray(step.after) && step.after.length === expected.length && step.after.every((v, c) => close(v, expected[c]));
+          });
+          check(elimOk, 'Operaciones de eliminación coinciden', 'Cada fila educativa produce la misma fila que el cálculo del pivote.', 'Operaciones de eliminación inconsistentes', 'Alguna operación de fila mostrada no coincide con el cálculo numérico.', label);
+        }
+
+        if (base && base[pivot.row - 1] === pivot.entering) {
+          ok('Cambio de base registrado correctamente', `${pivot.leaving} sale y ${pivot.entering} pasa a representar la fila pivote.`, label);
+        } else {
+          fail('Cambio de base inconsistente', `La fila pivote debía quedar identificada por ${pivot.entering}.`, label);
+        }
+      } catch (error) {
+        fail('No se pudo reproducir el pivote', `La auditoría encontró un problema al recalcular la iteración: ${error.message || error}.`, label);
+      }
+    } else if (it.type === 'objective') {
+      if (Array.isArray(it.phase1ObjectiveBefore)) ok('Transición de objetivo registrada', 'El cambio de objetivo conserva el estado previo necesario para explicar la fase.', label);
+      else if (it.transition === 'phase2-objective' && Array.isArray(it.originalObjectiveRow)) ok('Restauración de Z registrada', 'La transición hacia Fase II contiene la fila objetivo original para reconstrucción.', label);
+      else warn('Transición sin evidencia completa', 'El procedimiento contiene un cambio de objetivo, pero faltan algunos datos auxiliares para auditarlo completamente.', label);
+    }
+
+    lastTableau = tableau;
+    lastBase = base;
+    previousState = { tableau, base };
+  });
+
+  if (lastTableau && result.status === 'optimal') {
+    const objectiveRow = lastTableau[0] || [];
+    const rhsIndex = objectiveRow.length - 1;
+    const eligible = columns.map((c, i) => ({ c, i })).filter(x => x.i < rhsIndex && x.c.kind !== 'artificial');
+    const bad = eligible.filter(({ i }) => objectiveRow[i] < -tolerance);
+    check(bad.length === 0, 'Criterio de optimalidad satisfecho', 'No quedan coeficientes negativos en la fila objetivo entre las variables elegibles.', 'Criterio de optimalidad no coincide', `Quedan ${bad.length} coeficiente(s) negativo(s) en la fila objetivo: ${bad.map(x => x.c.name).join(', ')}.`, 'final');
+  } else if (result.status === 'unbounded') {
+    ok('Condición de no acotamiento documentada', 'El resultado terminó porque la variable entrante no tuvo una fila saliente válida; la auditoría conserva la evidencia del paso.', 'final');
+  } else if (result.status === 'infeasible') {
+    ok('Terminación por infactibilidad documentada', 'La resolución terminó con estado de infactibilidad; las iteraciones realizadas quedan auditadas hasta ese punto.', 'final');
+  } else if (result.status === 'cycle') {
+    warn('Terminación por posible ciclo', 'El motor detectó repetición de tableau; el auditor verifica las iteraciones hasta la detección.', 'final');
+  } else if (result.status === 'limit') {
+    warn('Límite de iteraciones alcanzado', 'La auditoría no interpreta el límite como un error matemático por sí mismo.', 'final');
+  }
+
+  const score = findings.reduce((acc, f) => { acc[f.level] = (acc[f.level] || 0) + 1; return acc; }, { ok: 0, warning: 0, danger: 0 });
+  return { findings, tolerance, score, passed: score.danger === 0 };
+}
+
+function renderSimplexAudit() {
+  if (!simplexTools.audit || !currentLastProblem || !currentLastResult) return;
+  const audit = auditSimplexProcedure(currentLastProblem, currentLastResult);
+  const total = audit.findings.length;
+  const summary = `\n    <div class="audit-summary-grid">\n      <div><span>Comprobaciones OK</span><strong>${audit.score.ok}</strong></div>\n      <div><span>Advertencias</span><strong>${audit.score.warning}</strong></div>\n      <div><span>Inconsistencias</span><strong>${audit.score.danger}</strong></div>\n      <div><span>Tolerancia</span><strong>±${escapeHtml(formatCompactNumber(audit.tolerance))}</strong></div>\n    </div>`;
+  const grouped = audit.findings.map((f) => {
+    const icon = f.level === 'ok' ? '✓' : f.level === 'warning' ? '!' : '×';
+    const iter = f.iteration != null ? `<small>${f.iteration === 'final' ? 'Estado final' : `Iteración ${escapeHtml(f.iteration)}`}</small>` : '';
+    return `<div class="audit-row ${f.level}"><span class="audit-mark" aria-hidden="true">${icon}</span><div><strong>${escapeHtml(f.title)}</strong><p>${escapeHtml(f.detail)}</p>${iter}</div></div>`;
+  }).join('');
+  simplexTools.audit.innerHTML = `\n    <div class="utility-panel-title"><div><strong>Auditoría del procedimiento</strong><small>Revisión interna de consistencia numérica, selección de pivotes y operaciones de fila. No sustituye la revisión matemática del ejercicio.</small></div></div>\n    ${summary}\n    <div class="audit-note"><strong>${audit.passed ? 'El procedimiento es consistente con los datos almacenados.' : 'Se encontraron inconsistencias que conviene revisar.'}</strong><span>${total} comprobación(es) registradas para esta resolución.</span></div>\n    <details class="audit-details"><summary>Ver revisión completa</summary><div class="audit-list">${grouped}</div></details>`;
+}
+
+function verifierTolerance(values = []) {
+  const scale = Math.max(1, ...values.map(v => Math.abs(Number(v) || 0)));
+  return Math.max(1e-7, scale * 1e-8);
+}
+
+function verifierNumberInput(label, index, value = '') {
+  return `<label>${label}<input class="verify-value" data-index="${index}" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(value)}"></label>`;
+}
+
+function renderSimplexVerifier() {
+  if (!simplexTools.verifier || !currentLastProblem) return;
+  const n = currentLastProblem.objective.length;
+  const hasOptimal = currentLastResult?.status === 'optimal' && currentLastResult?.solution?.variables?.length === n;
+  const defaultValues = Array(n).fill('');
+  const labels = defaultValues.map((v, i) => verifierNumberInput(`X${i + 1}`, i, v)).join('');
+  simplexTools.verifier.innerHTML = `
+    <div class="utility-panel-title">
+      <div><strong>Verificar una solución</strong><small>Escribe una solución calculada a mano para comprobar restricciones, no negatividad y función objetivo.</small></div>
+      ${hasOptimal ? `<button class="icon-btn glass-action simplex-verifier-fill" type="button" title="Cargar solución encontrada por Simplex" aria-label="Cargar solución encontrada por Simplex"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6M4 4h16v16H4z"/></svg></button>` : ''}
+    </div>
+    <div class="simplex-verifier-grid">
+      ${labels}
+      <label>Z (opcional)<input id="simplex-verify-z-input" type="text" inputmode="decimal" autocomplete="off" placeholder="Se calcula automáticamente"></label>
+    </div>
+    <div class="actions verifier-actions">
+      <button class="btn secondary" id="simplex-run-verify" type="button">Comprobar</button>
+      ${hasOptimal ? `<button class="btn secondary" id="simplex-clear-verify" type="button">Limpiar</button>` : ''}
+    </div>
+    <div id="simplex-verify-summary" class="verifier-summary" aria-live="polite"></div>
+    <div id="simplex-verify-result" aria-live="polite"></div>`;
+
+  const fillFromCurrent = () => {
+    const solution = currentLastResult?.solution?.variables;
+    if (!Array.isArray(solution)) return;
+    simplexTools.verifier.querySelectorAll('.verify-value').forEach((input, i) => {
+      input.value = formatNumber(solution[i] ?? 0);
+    });
+    const zInput = simplexTools.verifier.querySelector('#simplex-verify-z-input');
+    if (zInput) zInput.value = formatNumber(evaluateOriginalObjective(currentLastProblem, { variables: solution }));
+  };
+
+  simplexTools.verifier.querySelector('.simplex-verifier-fill')?.addEventListener('click', fillFromCurrent);
+  simplexTools.verifier.querySelector('#simplex-clear-verify')?.addEventListener('click', () => {
+    simplexTools.verifier.querySelectorAll('.verify-value').forEach(input => { input.value = ''; });
+    const zInput = simplexTools.verifier.querySelector('#simplex-verify-z-input');
+    if (zInput) zInput.value = '';
+    simplexTools.verifier.querySelector('#simplex-verify-summary').innerHTML = '';
+    simplexTools.verifier.querySelector('#simplex-verify-result').innerHTML = '';
+  });
+

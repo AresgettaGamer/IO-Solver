@@ -1,4 +1,4 @@
-# IO Solver v6.0 — Documentación técnica y guía de explicación
+# IO Solver v7.0.0 — Documentación técnica y guía de explicación
 
 ## 1. ¿Qué es el programa?
 
@@ -583,24 +583,26 @@ Porque esta implementación gráfica trabaja con exactamente dos variables y con
 
 ---
 
-## Versión pública actual: v6.0
+## Versión pública actual: v6.1
 
-La Versión 6.0 consolida la promoción estable de la línea v4.x y mantiene un sistema de diagnóstico del procedimiento. El módulo Simplex conserva su motor de resolución, método de dos fases, explicación educativa, verificación, importación de PDF/texto y método gráfico, y ahora explica las condiciones especiales que hacen que una iteración termine o requiera atención.
+La Versión 6.1 consolida la promoción estable de la línea v4.x y mantiene un sistema de diagnóstico del procedimiento. El módulo Simplex conserva su motor de resolución, método de dos fases, explicación educativa, verificación, importación de PDF/texto y método gráfico, y ahora explica las condiciones especiales que hacen que una iteración termine o requiera atención.
+
+En la vista gráfica, la sección solo se presenta cuando el modelo actual puede representarse como una región factible poligonal de dos variables con no negatividad activa y solución óptima finita. Cuando está disponible, se muestra además un procedimiento resumido con fronteras, intersecciones, vértices y evaluación de Z. Los modelos que no requieren variables artificiales siguen una ruta de Simplex directo y no muestran una transición de Fase I/Fase II que no haya ocurrido.
 
 Las referencias a `v3.x` dentro de esta documentación corresponden al historial real de desarrollo y no se renumeran, para conservar la trazabilidad de las correcciones.
 
 La siguiente etapa del proyecto puede incorporar progresivamente otros contenidos del curso de Investigación de Operaciones como módulos independientes, sin alterar el núcleo estable de Simplex.
 
-## 22.2 Actualización v6.0 · pruebas de estrés e importación robusta y consolidación
+## 22.2 Actualización v6.1 · pruebas de estrés e importación robusta y consolidación
 
-## 22.3 Consolidación v6.0 · dominio de no negatividad y advertencias no bloqueantes
+## 22.3 Consolidación v6.1 · dominio de no negatividad y advertencias no bloqueantes
 
 La ronda de estrés detectó que algunas extracciones de PDF todavía podían convertir la declaración `X₁, X₂ ≥ 0` en una restricción equivalente como `X₁ + X₂ ≥ 0`. Esta revisión separa explícitamente el dominio de no negatividad de las restricciones estructurales y conserva la casilla de no negatividad activa por defecto.
 
 También se evita bloquear innecesariamente modelos que contienen una función objetivo nula o una restricción con todos sus coeficientes en cero. Estos casos se muestran como condiciones matemáticas en el diagnóstico y se deja que el procedimiento determine si la condición es redundante o infactible. Un RHS negativo se puede importar con una advertencia para que el usuario pueda resolverlo y comprobar la factibilidad.
 
 
-La Versión 6.0 consolida el trabajo de diagnóstico de v4.1 y v4.2 a partir de un banco de pruebas con modelos normales y casos especiales.
+La Versión 6.1 consolida el trabajo de diagnóstico de v4.1 y v4.2 a partir de un banco de pruebas con modelos normales y casos especiales.
 
 Cambios principales:
 - Las líneas como `X1, X2 ≥ 0` se reconocen como **dominio de no negatividad** y no se agregan como restricciones del modelo.
@@ -829,7 +831,7 @@ El objetivo visual es acercar la experiencia a una aplicación moderna sin sacri
 
 Durante las versiones 2.x se realizaron iteraciones específicas de funcionalidad PERT / CPM, visualización, análisis estadístico, reportes y refinamiento Liquid Glass.
 
-La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **5.1**.
+La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **7.0.0**.
 
 
 ## 29. Comprobación final de la solución (v3.3)
@@ -917,3 +919,31 @@ La versión 3.18 refuerza exclusivamente la capa de entrada PDF/texto para que e
 - Se conserva el soporte para decimal con coma y formatos mixtos de miles/decimales en la entrada manual.
 - El rango del control de Z del método gráfico ya puede incluir valores negativos cuando el modelo los produce; el slider deja de estar limitado artificialmente a Z ≥ 0.
 - No se modifica el motor matemático del Simplex; son mejoras de entrada, visualización y cobertura de casos.
+
+
+## v6.5.0 — Modo práctica
+
+El modo práctica reutiliza las iteraciones y pivotes registrados por el solver sin alterar el núcleo matemático. Cada sesión genera preguntas sobre variable entrante, razón mínima válida, variable saliente y elemento pivote. El modo guiado explica el criterio después de cada respuesta correcta y permite reintentar una respuesta incorrecta; el modo examen registra las respuestas y muestra la revisión al finalizar.
+
+Las herramientas desplegables del resultado usan `aria-pressed` y una clase de estado activo para comunicar visualmente que Verificar, Auditar, Historial o Modo práctica están activas. El indicador usa el color de acento elegido por el usuario y no los colores semánticos de advertencia/error.
+
+## v6.4.0 — Auditoría del procedimiento Simplex
+
+La interfaz incorpora una herramienta de auditoría que revisa la trazabilidad de las iteraciones almacenadas por el motor: estructura del tableau, dimensiones de la base, coherencia de la variable entrante y saliente, prueba de razón, elemento pivote, reproducción numérica del pivote, normalización, eliminación de filas y criterio de optimalidad cuando corresponde. Las comprobaciones utilizan tolerancia numérica para evitar falsos positivos por redondeo. La auditoría es una capa de diagnóstico y consistencia; no modifica el algoritmo Simplex.
+
+La sección del verificador de soluciones mantiene separación vertical explícita respecto a las secciones del procedimiento para evitar superposición visual.
+
+
+## v7.0.0 — Inicio de la etapa PERT / CPM
+
+La versión 7.0.0 establece la nueva base publicada para la etapa de mejora de PERT / CPM. Mantiene las herramientas e infraestructura consolidadas en la rama 6.x y no modifica todavía el algoritmo de cálculo de PERT / CPM. Esta versión funciona como punto de partida para las mejoras funcionales, educativas y de presentación que se desarrollarán en la serie 7.x.
+
+## v6.6.0 — Servicios comunes de infraestructura
+
+Además, el reporte PERT / CPM usa reglas de impresión reforzadas para Carta: diagramas SVG sin `min-width` de pantalla, ajuste al ancho útil de la página y leyendas con fondo claro y contraste estable.
+
+La versión 6.6.0 consolida servicios compartidos para que los módulos no mantengan implementaciones separadas de guardado y generación de reportes.
+
+En la salida imprimible de PERT / CPM, la tabla de tiempos y holguras usa un ancho fijo relativo al área útil, permite envolver encabezados y predecesoras y elimina el ancho mínimo utilizado por la interfaz en pantalla. Esto evita que la tabla se desborde fuera de la hoja Carta. `io-services.js` expone operaciones comunes para descargar/leer proyectos JSON y abrir documentos multipágina con reglas de impresión Carta vertical. Simplex y PERT pueden reutilizar esta infraestructura sin alterar sus algoritmos de resolución.
+
+PERT / CPM utiliza el servicio común para guardar y cargar proyectos y serializa su último resultado calculado cuando existe, reconstruyendo internamente los `Map` necesarios al cargarlo. El reporte PERT también se genera mediante la misma ventana de impresión multipágina y las mismas reglas de ancho, ajuste de texto y saltos de página usadas por la infraestructura común.

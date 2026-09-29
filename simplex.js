@@ -926,8 +926,15 @@ function solveTwoPhase(problem) {
     restorationSteps.push({ rowLabel: basic, coefficient: cb, before, row: basicRow, result: workingObjective.slice(), arithmetic, hideArtificial: true });
   }
   setObjectiveFromCoefficients(tableau, base, phase2Coefficients, columns);
-  iterations.push({ type: 'objective', stage: 'Fase II · función objetivo', tableau: tableau.map((r) => r.slice()), base: base.slice(), pivot: null, ratios: null, before: phase2Before, transition: 'phase2-objective', artificialNames: artificial.map((a) => a.name), originalObjectiveRow, restorationSteps });
-  const phase2 = runSimplex(tableau, base, columns, 'Fase II', iterations, seen, { excludeKinds: ['artificial'] });
+  let phase2;
+  if (std.hasArtificial) {
+    iterations.push({ type: 'objective', stage: 'Fase II · función objetivo', tableau: tableau.map((r) => r.slice()), base: base.slice(), pivot: null, ratios: null, before: phase2Before, transition: 'phase2-objective', artificialNames: artificial.map((a) => a.name), originalObjectiveRow, restorationSteps });
+    phase2 = runSimplex(tableau, base, columns, 'Fase II', iterations, seen, { excludeKinds: ['artificial'] });
+  } else {
+    // Sin variables artificiales no existe una Fase I ni una transición W → Z.
+    // El tableau ya comienza con el objetivo original y Simplex continúa directamente.
+    phase2 = runSimplex(tableau, base, columns, 'Simplex directo', iterations, seen);
+  }
   const solution = extractOriginalSolution(tableau, base, columns, problem.objective.length, problem.nonnegative);
   let status = phase2.status;
   let message = phase2.message || (status === 'optimal' ? 'Se alcanzó el óptimo: no quedan coeficientes negativos en la fila objetivo del tableau transformado.' : '');
@@ -978,10 +985,50 @@ function formatGraphNumber(value){const v=clean(value);if(!Number.isFinite(v))re
 function svgPoint(p,b,w,h,pad=52){return{x:pad+(p.x-b.xmin)/(b.xmax-b.xmin)*(w-2*pad),y:h-pad-(p.y-b.ymin)/(b.ymax-b.ymin)*(h-2*pad)};}
 function objectiveSegment(problem,z,b){const c1=problem.objective[0]||0,c2=problem.objective[1]||0,pts=[];if(Math.abs(c2)>EPS)pts.push({x:b.xmin,y:(z-c1*b.xmin)/c2},{x:b.xmax,y:(z-c1*b.xmax)/c2});else if(Math.abs(c1)>EPS){const x=z/c1;pts.push({x,y:b.ymin},{x,y:b.ymax});}return pts;}
 function graphZRange(problem,verts){const zs=verts.map(p=>(problem.objective[0]||0)*p.x+(problem.objective[1]||0)*p.y).filter(Number.isFinite);if(!zs.length)return{min:0,max:10};const rawMin=Math.min(0,...zs),rawMax=Math.max(0,...zs);const span=Math.max(10,rawMax-rawMin);return{min:rawMin<0?rawMin-span*0.08:0,max:rawMax>0?rawMax+span*0.08:0};}
+function graphCapability(problem, result) {
+  if (problem.objective.length !== 2) return { available: false, reason: 'El método gráfico requiere exactamente 2 variables de decisión.' };
+  if (!problem.nonnegative) return { available: false, reason: 'El método gráfico de esta vista requiere no negatividad activa.' };
+  if (result.status !== 'optimal') return { available: false, reason: 'La vista gráfica solo se muestra cuando Simplex obtiene una solución óptima finita.' };
+  const vertices = graphVertices(problem);
+  if (vertices.length < 3) return { available: false, reason: 'No se pudo construir una región factible poligonal cerrada con los datos actuales.' };
+  return { available: true, vertices };
+}
+
+function renderGraphProcedure(problem, vertices) {
+  const objectiveValues = vertices.map((p, index) => ({ index: index + 1, x: p.x, y: p.y, z: clean((problem.objective[0] || 0) * p.x + (problem.objective[1] || 0) * p.y) }));
+  const vertexRows = objectiveValues.map((p) => `<tr><td>V${p.index}</td><td>${formatCompactNumber(p.x)}</td><td>${formatCompactNumber(p.y)}</td><td>${formatCompactNumber(p.z)}</td></tr>`).join('');
+  const direction = problem.type === 'max' ? 'mayor' : 'menor';
+  return `<details class="graph-procedure">
+    <summary>Ver procedimiento para construir la gráfica</summary>
+    <div class="graph-procedure-body">
+      <ol>
+        <li><strong>Convertir las restricciones a rectas de referencia.</strong> Se iguala cada restricción a su frontera para poder dibujarla.</li>
+        <li><strong>Agregar la no negatividad.</strong> Como X₁, X₂ ≥ 0, los ejes X₁=0 y X₂=0 también delimitan la región.</li>
+        <li><strong>Encontrar intersecciones.</strong> Se calculan los cruces entre las fronteras y se conservan únicamente los puntos que cumplen todas las restricciones.</li>
+        <li><strong>Construir la región factible.</strong> Los puntos factibles se ordenan para formar el polígono que se muestra en la gráfica.</li>
+        <li><strong>Evaluar la función objetivo en los vértices.</strong> Para este modelo, los valores calculados son:</li>
+      </ol>
+      <div class="graph-vertex-table"><table><thead><tr><th>Punto</th><th>X₁</th><th>X₂</th><th>Z</th></tr></thead><tbody>${vertexRows}</tbody></table></div>
+      <p class="graph-procedure-note">En ${problem.type === 'max' ? 'maximización' : 'minimización'}, el óptimo corresponde al valor de Z ${direction} entre los vértices factibles. La recta de Z puede moverse con el control para visualizar cómo cambia su posición.</p>
+    </div>
+  </details>`;
+}
+
 function renderGraph(problem,result,z){if(problem.objective.length!==2||!problem.nonnegative)return '<div class="graph-unavailable">El método gráfico de esta versión requiere exactamente 2 variables y no negatividad activada. El Simplex sigue funcionando con modelos más generales.</div>';const verts=graphVertices(problem);if(verts.length<3)return '<div class="graph-unavailable">No se pudo formar una región factible poligonal para mostrarla gráficamente.</div>';const b=graphBounds(verts),w=760,h=440,pad=52,poly=verts.map(p=>{const q=svgPoint(p,b,w,h,pad);return`${q.x},${q.y}`}).join(' ');const grid=[];for(let i=0;i<=5;i+=1){const x=b.xmax*i/5,q=svgPoint({x,y:0},b,w,h,pad);grid.push(`<line x1="${q.x}" y1="${pad}" x2="${q.x}" y2="${h-pad}" class="graph-grid"/><text x="${q.x}" y="${h-pad+20}" text-anchor="middle" class="graph-label">${formatGraphNumber(x)}</text>`);const y=b.ymax*i/5,r=svgPoint({x:0,y},b,w,h,pad);grid.push(`<line x1="${pad}" y1="${r.y}" x2="${w-pad}" y2="${r.y}" class="graph-grid"/><text x="${pad-8}" y="${r.y+4}" text-anchor="end" class="graph-label">${formatGraphNumber(y)}</text>`);}const constraints=problem.constraints.map((c,i)=>{const c1=c.coeffs[0]||0,c2=c.coeffs[1]||0;if(Math.abs(c2)<EPS){if(Math.abs(c1)<EPS)return'';const x=c.rhs/c1,q1=svgPoint({x,y:0},b,w,h,pad),q2=svgPoint({x,y:b.ymax},b,w,h,pad);return`<line x1="${q1.x}" y1="${q1.y}" x2="${q2.x}" y2="${q2.y}" class="graph-constraint"/><text x="${q1.x+5}" y="${pad+15*i}" class="graph-label">R${i+1}</text>`;}const y1=c.rhs/c2,y2=(c.rhs-c1*b.xmax)/c2,q1=svgPoint({x:0,y:y1},b,w,h,pad),q2=svgPoint({x:b.xmax,y:y2},b,w,h,pad);return`<line x1="${q1.x}" y1="${q1.y}" x2="${q2.x}" y2="${q2.y}" class="graph-constraint"/><text x="${Math.max(pad,Math.min(w-pad-32,q2.x-24))}" y="${Math.max(pad+14,Math.min(h-pad,q2.y-6))}" class="graph-label">R${i+1}</text>`;}).join('');const ops=objectiveSegment(problem,z,b);const opLine=ops.length===2?(()=>{const q1=svgPoint(ops[0],b,w,h,pad),q2=svgPoint(ops[1],b,w,h,pad);return`<line x1="${q1.x}" y1="${q1.y}" x2="${q2.x}" y2="${q2.y}" class="graph-objective"/>`;})():'';const sol=result.solution?.variables?.length===2?{x:result.solution.variables[0],y:result.solution.variables[1]}:null;const mark=sol&&isFeasiblePoint(problem,sol.x,sol.y)?(()=>{const q=svgPoint(sol,b,w,h,pad);return`<circle cx="${q.x}" cy="${q.y}" r="6" class="graph-solution"/><text x="${q.x+9}" y="${q.y-9}" class="graph-label">Óptimo (${formatCompactNumber(sol.x)}, ${formatCompactNumber(sol.y)})</text>`;})():'';return`<div class="graph-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Gráfica de la región factible, restricciones y recta de Z"><g>${grid.join('')}</g><polygon points="${poly}" class="graph-feasible"/>${constraints}${opLine}${mark}<line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" class="graph-axis"/><line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" class="graph-axis"/><text x="${w-pad-8}" y="${h-pad-10}" text-anchor="end" class="graph-axis-label">X₁</text><text x="${pad+8}" y="${pad+20}" text-anchor="start" class="graph-axis-label">X₂</text></svg><div class="graph-legend"><span><i class="legend-box feasible"></i>Región factible</span><span><i class="legend-line constraint"></i>Restricciones</span><span><i class="legend-line objective"></i>Recta de Z</span><span><i class="legend-dot"></i>Óptimo</span></div><p class="graph-note">${problem.type==='max'?'En maximización, la recta se desplaza hacia valores mayores de Z sin abandonar la región factible.':'En minimización, la recta se desplaza hacia valores menores de Z sin abandonar la región factible.'}</p></div>`;}
 function renderResults(problem, result) {
   currentLastProblem = problem;
   currentLastResult = result;
+  if (typeof simplexTools !== 'undefined') {
+    simplexTools.practice?.classList.add('hidden');
+    simplexTools.verifier?.classList.add('hidden');
+    simplexTools.audit?.classList.add('hidden');
+    if (simplexTools.practice) simplexTools.practice.innerHTML = '';
+    if (simplexTools.audit) simplexTools.audit.innerHTML = '';
+    setSimplexUtilityButtonState(simplexTools.practiceBtn, false);
+    setSimplexUtilityButtonState(simplexTools.verifyBtn, false);
+    setSimplexUtilityButtonState(simplexTools.auditBtn, false);
+    if (typeof simplexPracticeState !== 'undefined') simplexPracticeState = createSimplexPracticeState();
+  }
   el.resultSection.classList.remove('hidden');
   const statusMap = {
     optimal: 'Solución óptima encontrada',
@@ -997,11 +1044,11 @@ function renderResults(problem, result) {
   el.methodBadge.classList.remove('hidden');
   if (el.diagnosticPanel) el.diagnosticPanel.innerHTML = renderDiagnosticPanel(result.diagnostics || []);
 
-  const graphCapable = problem.objective.length === 2 && problem.nonnegative && result.status !== 'infeasible';
-  if (graphCapable && el.graphSection) {
+  const graphState = graphCapability(problem, result);
+  if (graphState.available && el.graphSection) {
     el.graphSection.classList.remove('hidden');
     el.graphControls.classList.remove('hidden');
-    const verts = graphVertices(problem);
+    const verts = graphState.vertices;
     const range = graphZRange(problem, verts);
     const solutionZ = result.solution?.variables?.length===2 ? problem.objective[0]*result.solution.variables[0]+problem.objective[1]*result.solution.variables[1] : range.min;
     el.graphSlider.min = String(range.min);
@@ -1009,7 +1056,7 @@ function renderResults(problem, result) {
     el.graphSlider.value = String(Math.max(range.min, Math.min(Number(el.graphSlider.max), solutionZ)));
     updateGraphSliderVisual();
     el.graphZValue.textContent = `Z = ${formatCompactNumber(Number(el.graphSlider.value))}`;
-    el.graphOutput.innerHTML = renderGraph(problem,result,Number(el.graphSlider.value));
+    el.graphOutput.innerHTML = renderGraphProcedure(problem, verts) + renderGraph(problem,result,Number(el.graphSlider.value));
   } else if (el.graphSection) {
     el.graphSection.classList.add('hidden');
     el.graphControls.classList.add('hidden');
@@ -1859,7 +1906,7 @@ function modelPreviewHtml(model) {
   return `<div class="detected-equations"><div><strong>${model.type === 'max' ? 'Max' : 'Min'} Z =</strong> ${obj}</div>${cons}</div>${varNames}${notes}${domainNote}${importDiagnostics}`;
 }
 
-function importModelIntoEditor(model) {
+function importModelIntoEditor(model, exerciseName = '') {
   state.variables = model.objective.length;
   state.constraints = model.constraints.length;
   state.objectiveType = model.type;
@@ -1872,7 +1919,9 @@ function importModelIntoEditor(model) {
     objective: model.objective.map(formatNumber),
     constraints: model.constraints.map(c => ({ coeffs: c.coeffs.map(formatNumber), op: c.op, rhs: formatNumber(c.rhs) }))
   });
-  showMessage('Modelo importado al editor. Revísalo antes de resolver.', 'ok');
+  const cleanName = String(exerciseName || '').trim().slice(0, 100);
+  if (cleanName && simplexTools.projectName) simplexTools.projectName.value = cleanName;
+  showMessage(cleanName ? `Modelo importado como «${cleanName}». Revísalo antes de resolver.` : 'Modelo importado al editor. Revísalo antes de resolver.', 'ok');
   document.getElementById('problem-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1887,7 +1936,10 @@ function renderCandidates(candidates, sourceLabel = 'Texto analizado') {
     const manualActions = !c.model.ok ? `<button type="button" class="btn secondary manual-interpret-btn" data-index="${i}">Interpretar / editar</button><button type="button" class="btn secondary copy-ai-prompt-btn" data-index="${i}">Preparar solicitud para IA</button>` : '';
     return `<article class="exercise-candidate"><h3>${escapeHtml(title)}</h3><div class="detected-meta"><span>${c.model.ok ? '✓ Modelo detectado' : '⚠ Revisión manual'}</span>${c.model.ok ? `<span>${c.model.type === 'max' ? 'Maximización' : 'Minimización'}</span><span>${c.model.objective.length} variable(s)</span><span>${c.model.constraints.length} restricción(es)</span>` : ''}</div>${modelPreviewHtml(c.model)}<details><summary>Ver texto detectado</summary><pre>${escapeHtml(c.text)}</pre></details><div class="actions">${c.model.ok ? `<button type="button" class="btn primary import-use-btn" data-index="${i}">Usar este modelo</button>` : manualActions}</div></article>`;
   }).join('');
-  el.pdfResults.querySelectorAll('.import-use-btn').forEach(btn => btn.addEventListener('click', () => importModelIntoEditor(candidates[Number(btn.dataset.index)].model)));
+  el.pdfResults.querySelectorAll('.import-use-btn').forEach(btn => btn.addEventListener('click', () => {
+    const candidate = candidates[Number(btn.dataset.index)];
+    importModelIntoEditor(candidate.model, candidate.title);
+  }));
   el.pdfResults.querySelectorAll('.manual-interpret-btn').forEach(btn => btn.addEventListener('click', () => openManualInterpretation(candidates[Number(btn.dataset.index)])));
   el.pdfResults.querySelectorAll('.copy-ai-prompt-btn').forEach(btn => btn.addEventListener('click', () => prepareAiPrompt(candidates[Number(btn.dataset.index)])));
 }
@@ -1926,7 +1978,7 @@ function openManualInterpretation(candidate) {
       return;
     }
     out.innerHTML = `<div class="candidate-success"><strong>✓ Modelo reconstruido</strong>${modelPreviewHtml(result)}<div class="actions"><button type="button" class="btn primary use-reanalyzed-btn">Usar este modelo</button></div></div>`;
-    out.querySelector('.use-reanalyzed-btn').addEventListener('click', () => { importModelIntoEditor(result); });
+    out.querySelector('.use-reanalyzed-btn').addEventListener('click', () => { importModelIntoEditor(result, candidate.title); });
   });
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -2022,9 +2074,10 @@ async function extractPdfText(file) {
 
 function analyzeTextInput(text, label = 'Texto pegado') {
   const blocks = splitPdfExercises(text);
+  const heading = /^(?:(?:\d+|[A-Z])\s*[.)-]\s*)?(?:ejercicio|ejerc\.|problema|problem|modelo)\s*(?:n[°ºo.]?\s*)?\d+\b/i;
   const candidates = blocks.map((block, i) => {
     const first = block.split(/\n/)[0] || `Ejercicio ${i + 1}`;
-    const title = /^(?:ejercicio|ejerc\.|problema|problem|modelo)/i.test(first) ? first : `Bloque ${i + 1}`;
+    const title = heading.test(first) ? first : `Bloque ${i + 1}`;
     return { title, text: block, model: extractModelFromText(block) };
   });
   renderCandidates(candidates, label);
@@ -2095,6 +2148,7 @@ el.form.addEventListener('submit', (event) => {
     const problem = readProblem();
     const result = solveTwoPhase(problem);
     renderResults(problem, result);
+    addSimplexHistory(problem, result, currentProjectName());
     const inputWarnings = (problem.inputDiagnostics || []).filter(d => d.severity !== 'info');
     const message = result.status === 'optimal'
       ? (inputWarnings.length ? 'Problema resuelto; revisa las advertencias del diagnóstico.' : 'Problema resuelto correctamente.')
@@ -2121,3 +2175,867 @@ el.graphSlider?.addEventListener('input',()=>{updateGraphSliderVisual();el.graph
 updateGraphSliderVisual();
 
 renderEditor();
+
+/* v7.0.0 · Herramientas de trabajo alrededor del núcleo Simplex */
+const simplexTools = {
+  projectName: document.getElementById('simplex-project-name'),
+  newBtn: document.getElementById('simplex-new-btn'),
+  saveBtn: document.getElementById('simplex-save-btn'),
+  loadBtn: document.getElementById('simplex-load-btn'),
+  fileInput: document.getElementById('simplex-file-input'),
+  historyBtn: document.getElementById('simplex-history-btn'),
+  historyPanel: document.getElementById('simplex-history-panel'),
+  addDeliveryBtn: document.getElementById('simplex-add-delivery-btn'),
+  deliverySection: document.getElementById('simplex-delivery-section'),
+  deliveryList: document.getElementById('simplex-delivery-list'),
+  deliveryExportBtn: document.getElementById('simplex-delivery-export-btn'),
+  deliveryClearBtn: document.getElementById('simplex-delivery-clear-btn'),
+  practiceBtn: document.getElementById('simplex-practice-btn'),
+  practice: document.getElementById('simplex-practice'),
+  verifyBtn: document.getElementById('simplex-verify-btn'),
+  verifier: document.getElementById('simplex-verifier'),
+  auditBtn: document.getElementById('simplex-audit-btn'),
+  audit: document.getElementById('simplex-audit'),
+  copyProcedureBtn: document.getElementById('simplex-copy-procedure-btn'),
+  exportReportBtn: document.getElementById('simplex-export-report-btn'),
+  printReport: document.getElementById('simplex-print-report'),
+};
+
+const SIMPLEX_HISTORY_KEY = 'io-solver-simplex-history-v1';
+const SIMPLEX_DELIVERY_KEY = 'io-solver-simplex-delivery-v1';
+
+function safeLocalGet(key, fallback) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch (_) { return fallback; }
+}
+function safeLocalSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (_) { return false; }
+}
+function currentProjectName() {
+  return String(simplexTools.projectName?.value || '').trim().slice(0, 100) || 'Ejercicio de Simplex';
+}
+function captureProblemFromEditor() {
+  const problem = readProblem();
+  return JSON.parse(JSON.stringify(problem));
+}
+function loadProblemIntoEditor(problem, name = 'Ejercicio de Simplex') {
+  state.variables = problem.objective.length;
+  state.constraints = problem.constraints.length;
+  state.objectiveType = problem.type;
+  state.nonnegative = !!problem.nonnegative;
+  el.variableCount.value = String(state.variables);
+  el.constraintCount.value = String(state.constraints);
+  el.objectiveType.value = state.objectiveType;
+  el.nonnegative.checked = state.nonnegative;
+  renderEditor({
+    objective: problem.objective.map(String),
+    constraints: problem.constraints.map(c => ({ coeffs: c.coeffs.map(String), op: c.op, rhs: String(c.rhs) }))
+  });
+  if (simplexTools.projectName) simplexTools.projectName.value = name;
+}
+function addSimplexHistory(problem, result, name) {
+  const history = safeLocalGet(SIMPLEX_HISTORY_KEY, []);
+  const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2,7)}`, name, problem, result, savedAt: new Date().toISOString() };
+  history.unshift(entry);
+  safeLocalSet(SIMPLEX_HISTORY_KEY, history.slice(0, 12));
+  renderSimplexHistory();
+}
+function renderSimplexHistory() {
+  if (!simplexTools.historyPanel) return;
+  const history = safeLocalGet(SIMPLEX_HISTORY_KEY, []);
+  simplexTools.historyPanel.innerHTML = history.length ? `<div class="utility-panel-title"><strong>Historial reciente</strong><small>Hasta 12 ejercicios resueltos en este navegador.</small></div><div class="delivery-list">${history.map((item, i) => `<div class="history-item"><div><strong>${escapeHtml(item.name || `Ejercicio ${i+1}`)}</strong><small>${new Date(item.savedAt).toLocaleString('es-MX')} · ${escapeHtml(item.result?.status || 'sin resultado')}</small></div><div class="delivery-item-actions"><button class="icon-btn simplex-history-load" data-id="${escapeHtml(item.id)}" type="button" title="Abrir" aria-label="Abrir del historial"><svg viewBox="0 0 24 24"><path d="M4 6h6l2 2h8v10H4zM4 10h16"/></svg></button><button class="icon-btn simplex-history-add" data-id="${escapeHtml(item.id)}" type="button" title="Agregar a entrega" aria-label="Agregar a entrega"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5zM14 4v5h5M8 14h8M8 17h8"/></svg></button></div></div>`).join('')}</div>` : '<div class="utility-empty">Todavía no hay ejercicios en el historial.</div>';
+  simplexTools.historyPanel.querySelectorAll('.simplex-history-load').forEach(btn => btn.addEventListener('click', () => {
+    const item = history.find(x => x.id === btn.dataset.id); if (!item) return;
+    loadProblemIntoEditor(item.problem, item.name);
+    if (item.result) renderResults(item.problem, item.result);
+    simplexTools.historyPanel.classList.add('hidden');
+    el.resultSection.scrollIntoView({ behavior:'smooth', block:'start' });
+  }));
+  simplexTools.historyPanel.querySelectorAll('.simplex-history-add').forEach(btn => btn.addEventListener('click', () => {
+    const item = history.find(x => x.id === btn.dataset.id); if (!item) return;
+    addToSimplexDelivery(item.problem, item.result, item.name);
+  }));
+}
+function getSimplexDelivery() { return safeLocalGet(SIMPLEX_DELIVERY_KEY, []); }
+function addToSimplexDelivery(problem, result, name) {
+  if (!problem || !result) { showMessage('Resuelve primero el ejercicio para agregarlo a la entrega.', 'error'); return; }
+  const list = getSimplexDelivery();
+  const key = JSON.stringify(problem);
+  const duplicate = list.find(x => JSON.stringify(x.problem) === key);
+  if (duplicate) { showMessage('Ese ejercicio ya está en la entrega.', ''); renderSimplexDelivery(); return; }
+  list.push({ id:`${Date.now()}-${Math.random().toString(36).slice(2,7)}`, name:name || currentProjectName(), problem, result, addedAt:new Date().toISOString() });
+  safeLocalSet(SIMPLEX_DELIVERY_KEY, list.slice(0, 30));
+  renderSimplexDelivery();
+  showMessage(`Agregado a la entrega (${Math.min(list.length,30)} ejercicios).`, 'ok');
+}
+function removeFromSimplexDelivery(id) {
+  safeLocalSet(SIMPLEX_DELIVERY_KEY, getSimplexDelivery().filter(x => x.id !== id));
+  renderSimplexDelivery();
+}
+function renderSimplexDelivery() {
+  const list = getSimplexDelivery();
+  if (simplexTools.deliverySection) simplexTools.deliverySection.classList.toggle('hidden', list.length === 0);
+  if (!simplexTools.deliveryList) return;
+  simplexTools.deliveryList.innerHTML = list.length ? list.map((item,i) => `<div class="delivery-item"><div><strong>${i+1}. ${escapeHtml(item.name || `Ejercicio ${i+1}`)}</strong><small>${escapeHtml(item.result?.status || 'sin resultado')} · agregado ${new Date(item.addedAt).toLocaleString('es-MX')}</small></div><div class="delivery-item-actions"><button class="icon-btn simplex-delivery-open" data-id="${escapeHtml(item.id)}" type="button" title="Abrir ejercicio" aria-label="Abrir ejercicio"><svg viewBox="0 0 24 24"><path d="M4 6h6l2 2h8v10H4zM4 10h16"/></svg></button><button class="icon-btn simplex-delivery-remove" data-id="${escapeHtml(item.id)}" type="button" title="Quitar" aria-label="Quitar de la entrega"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div></div>`).join('') : '<div class="utility-empty">Agrega ejercicios resueltos con el icono de documento de la barra superior.</div>';
+  simplexTools.deliveryList.querySelectorAll('.simplex-delivery-open').forEach(btn => btn.addEventListener('click', () => {
+    const item = list.find(x => x.id === btn.dataset.id); if (!item) return;
+    loadProblemIntoEditor(item.problem, item.name); renderResults(item.problem, item.result); el.resultSection.scrollIntoView({behavior:'smooth',block:'start'});
+  }));
+  simplexTools.deliveryList.querySelectorAll('.simplex-delivery-remove').forEach(btn => btn.addEventListener('click', () => removeFromSimplexDelivery(btn.dataset.id)));
+}
+function modelReportHTML(problem) {
+  const obj = problem.objective.map((c,i)=>`${c} X${i+1}`).join(' + ').replace(/\+ -/g,'− ');
+  const rows = problem.constraints.map((c,i)=>`<tr><td>R${i+1}</td>${c.coeffs.map(v=>`<td>${formatNumber(v)}</td>`).join('')}<td>${escapeHtml(c.op)}</td><td>${formatNumber(c.rhs)}</td></tr>`).join('');
+  return `<div class="print-section"><h2>Modelo matemático</h2><p><strong>${problem.type === 'max' ? 'Maximizar' : 'Minimizar'} Z = ${escapeHtml(obj)}</strong></p><table><thead><tr><th>Restricción</th>${problem.objective.map((_,i)=>`<th>X${i+1}</th>`).join('')}<th>Tipo</th><th>Solución</th></tr></thead><tbody>${rows}</tbody></table><p>Dominio: ${problem.nonnegative ? 'X ≥ 0' : 'variables libres'}</p></div>`;
+}
+function resultSummaryHTML(problem, result) {
+  const solution = result.solution;
+  const z = solution ? evaluateOriginalObjective(problem, solution) : null;
+  const cards = solution
+    ? [...solution.variables.map((v,i)=>`<div class="print-card"><span>X${i+1}</span><strong>${escapeHtml(formatCompactNumber(v))}</strong></div>`), `<div class="print-card"><span>Z</span><strong>${escapeHtml(formatCompactNumber(z))}</strong></div>`]
+    : [`<div class="print-card"><span>Estado</span><strong>${escapeHtml(result.status)}</strong></div>`];
+  return `<div class="print-summary-grid">${cards.join('')}</div>`;
+}
+function buildSimplexPrintReport(problem, result, title = currentProjectName(), delivery = false) {
+  const graphState = graphCapability(problem, result);
+  const graph = graphState.available ? (renderGraphProcedure(problem, graphState.vertices) + renderGraph(problem, result, graphZRange(problem, graphState.vertices).max)) : '';
+  const diagnostic = renderDiagnosticPanel(result.diagnostics || []);
+  const process = (result.iterations || []).map((it,idx)=>renderStage(it,idx,result.columns)).join('');
+  return `<article class="print-report-page"><div class="print-cover"><p class="eyebrow">IO Solver · Investigación de Operaciones</p><h1>${escapeHtml(title)}</h1><p>Reporte ${delivery ? `de entrega · Ejercicio ${escapeHtml(title)}` : 'Simplex'} · ${new Date().toLocaleDateString('es-MX')}</p></div><div class="print-section"><h2>Resultado</h2><p><strong>${escapeHtml(result.status === 'optimal' ? 'Solución óptima encontrada' : result.status)}</strong></p><p>${escapeHtml(result.message || '')}</p>${resultSummaryHTML(problem,result)}</div>${modelReportHTML(problem)}${diagnostic ? `<div class="print-section"><h2>Diagnóstico</h2>${diagnostic}</div>` : ''}${graph ? `<div class="print-section"><h2>Método gráfico</h2>${graph}</div>` : ''}<div class="print-section"><h2>Procedimiento de resolución</h2>${process}</div><div class="report-footer">IO Solver · Reporte generado desde el módulo Simplex.</div></article>`;
+}
+function buildSimplexDeliveryReport(items) {
+  const date = new Date().toLocaleDateString('es-MX');
+  const index = items.map((item, i) => `<li><strong>${i + 1}. ${escapeHtml(item.name || `Ejercicio ${i + 1}`)}</strong><span>${escapeHtml(item.result?.status || 'sin resultado')}</span></li>`).join('');
+  const exercises = items.map((item, i) => `<section class="delivery-exercise" data-exercise-number="${i + 1}">
+    <div class="delivery-exercise-meta"><span>Ejercicio ${i + 1} de ${items.length}</span><span>${escapeHtml(item.result?.status || 'sin resultado')}</span></div>
+    ${buildSimplexPrintReport(item.problem, item.result, item.name || `Ejercicio ${i + 1}`, true)}
+  </section>`).join('');
+  return `<article class="print-report-page delivery-report-cover">
+    <div class="print-cover">
+      <p class="eyebrow">IO Solver · Investigación de Operaciones</p>
+      <h1>Entrega de ejercicios</h1>
+      <p>Problemario de Programación Lineal · ${date}</p>
+    </div>
+    <div class="print-section">
+      <h2>Contenido</h2>
+      <ol class="delivery-index">${index}</ol>
+      <p class="delivery-index-note">${items.length} ejercicio${items.length === 1 ? '' : 's'} incluido${items.length === 1 ? '' : 's'}.</p>
+    </div>
+    <div class="report-footer">IO Solver · Documento preparado desde el modo tarea.</div>
+  </article>${exercises}`;
+}
+
+function simplexDeliveryPrintStyles() {
+  return `
+    @page { size: Letter portrait; margin: 0; }
+    html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100%; background: #fff !important; }
+    body { color: #172033 !important; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif !important; font-size: 10.5pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .simplex-print-report {
+      display: block !important;
+      box-sizing: border-box !important;
+      width: 8.5in !important;
+      max-width: 100% !important;
+      margin: 0 auto !important;
+      padding: 0.58in 0.62in 0.62in !important;
+      background: #fff !important;
+      color: #172033 !important;
+      overflow: visible !important;
+    }
+    .print-report-page,
+    .delivery-exercise {
+      box-sizing: border-box !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+    }
+    .print-report-page { padding: 0 !important; }
+    .print-report-page .print-cover { border-bottom: 2px solid #d8dee8; padding: 0 0 0.20in; margin: 0 0 0.18in; }
+    .delivery-report-cover { break-after: page; page-break-after: always; }
+    .delivery-exercise { break-before: page; page-break-before: always; display: block; }
+    .delivery-exercise:first-of-type { break-before: page; page-break-before: always; }
+    .delivery-exercise-meta {
+      display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;
+      margin:0 0 0.16in; padding: 0.06in 0 0.08in;
+      border-bottom: 1px solid #e5eaf0; color:#68758a; font-size:8.5pt; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+    }
+    h1, h2, h3, p, li, strong, span, small {
+      max-width: 100% !important;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    h1, h2, h3 { color:#172033 !important; break-after: avoid-page; page-break-after: avoid; }
+    h1 { font-size: 22pt !important; line-height:1.12; margin:0 0 0.10in; }
+    h2 { font-size: 14pt !important; line-height:1.2; margin-top: 0.14in; }
+    h3 { font-size: 11pt !important; line-height:1.25; }
+    p, li { orphans: 3; widows: 3; }
+    p { margin-top: 0.07in; margin-bottom: 0.07in; }
+    .print-section { margin: 0.14in 0 !important; break-inside: auto; page-break-inside: auto; }
+    .print-summary-grid { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap: 0.08in !important; width:100% !important; }
+    .print-card { min-width:0 !important; box-sizing:border-box !important; border:1px solid #d8dee8 !important; border-radius:7px !important; padding:0.07in 0.08in !important; background:#f7f9fb !important; break-inside:avoid-page; }
+    .print-card span { color:#68758a !important; font-size:7.5pt !important; }
+    .print-card strong { font-size:11pt !important; }
+    .simplex-print-report table { width:100% !important; min-width:0 !important; max-width:100% !important; box-sizing:border-box !important; border-collapse:collapse !important; font-size:7.7pt !important; table-layout:fixed !important; }
+    .simplex-print-report thead { display:table-header-group; }
+    .simplex-print-report tr { break-inside:avoid; page-break-inside:avoid; }
+    .simplex-print-report th, .simplex-print-report td { border:1px solid #d5deea !important; padding:0.035in 0.045in !important; text-align:left; vertical-align:top; overflow-wrap:anywhere; word-break:break-word; white-space:normal !important; }
+    .simplex-print-report th { background:#eef3f8 !important; }
+    .table-wrap { overflow: visible !important; width:100% !important; max-width:100% !important; border-radius: 0 !important; break-inside:auto; }
+    .graph-wrap, .graph-procedure, .decision-grid, .decision-card, .callout, .base-change-callout, .phase-transition, .phase-iteration-explanation, .phase-procedure, .phase-tableau-change, .phase-row-card, .phase-grid, .phase-grid > div, .phase-restoration-step, .preparation-block, .arithmetic-details, .calc-step {
+      break-inside: avoid-page; page-break-inside: avoid;
+    }
+    .graph-wrap { width:100% !important; max-width:100% !important; overflow:visible !important; }
+    .graph-wrap svg { width:100% !important; min-width:0 !important; max-width:100% !important; height:auto !important; display:block; }
+    .graph-procedure[open] > summary { margin-bottom: 0.05in; }
+    .graph-procedure-body, .phase-procedure, .phase-restoration-step, .callout, .decision-card { max-width:100% !important; }
+    details { break-inside:auto; }
+    .step-flow, .steps, .phase-flow { break-inside:auto !important; }
+    .phase-math-scroll, .phase-operation { white-space:normal !important; overflow:visible !important; overflow-wrap:anywhere !important; word-break:break-word !important; max-width:100% !important; }
+    .calc-step { margin: 0.08in 0 !important; }
+    .report-footer { margin-top: 0.14in; padding-top: 0.07in; border-top:1px solid #e5eaf0; color:#7a8798 !important; font-size:7.5pt !important; }
+    .delivery-index { margin: 0.10in 0; padding-left: 0.24in; }
+    .delivery-index li { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.12in; padding: 0.07in 0; border-bottom:1px solid #e5eaf0; }
+    .delivery-index li span { color:#68758a !important; font-size:8pt !important; }
+    .delivery-index-note { color:#68758a !important; font-size:8.5pt !important; }
+    .hidden { display:none !important; }
+    .print-page-break { break-before:page !important; page-break-before:always !important; height:0 !important; }
+    @media print {
+      .simplex-print-report { overflow: visible !important; }
+      .simplex-print-report .graph-wrap svg { break-inside:avoid; }
+    }
+  `;
+}
+function openSimplexDeliveryPrint(items) {
+  const validItems = Array.isArray(items) ? items.filter(item => item?.problem && item?.result) : [];
+  if (!validItems.length) {
+    showMessage('La entrega no contiene ejercicios resueltos válidos.', 'error');
+    return;
+  }
+  try {
+    if (!window.IOSolverServices?.print?.open) throw new Error('El servicio de reportes común no está disponible.');
+    const report = buildSimplexDeliveryReport(validItems);
+    window.IOSolverServices.print.open({
+      title: `IO Solver · Entrega · ${new Date().toLocaleDateString('es-MX')}`,
+      content: report,
+      styles: simplexDeliveryPrintStyles(),
+      bodyClass: 'delivery-print-document'
+    });
+    showMessage(`Preparando la entrega (${validItems.length} ejercicios)…`, 'ok');
+  } catch (error) {
+    showMessage(`No se pudo preparar la entrega: ${error?.message || error}`, 'error');
+  }
+}
+
+function printSimplexReport(items, mode = 'single') {
+  if (!Array.isArray(items) || !items.length) {
+    showMessage('Resuelve o agrega al menos un ejercicio antes de generar el reporte.', 'error');
+    return;
+  }
+  if (!simplexTools.printReport) {
+    showMessage('No se encontró el área de impresión del reporte.', 'error');
+    return;
+  }
+
+  try {
+    const validItems = items.filter(item => item?.problem && item?.result);
+    if (!validItems.length) {
+      showMessage('La entrega no contiene ejercicios resueltos válidos.', 'error');
+      return;
+    }
+    simplexTools.printReport.innerHTML = mode === 'delivery'
+      ? buildSimplexDeliveryReport(validItems)
+      : validItems.map((item, i) => buildSimplexPrintReport(item.problem, item.result, item.name || `Ejercicio ${i + 1}`, validItems.length > 1)).join('<div class="print-page-break"></div>');
+    document.body.classList.add('print-simplex');
+    const cleanup = () => {
+      document.body.classList.remove('print-simplex');
+      simplexTools.printReport.innerHTML = '';
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  } catch (error) {
+    document.body.classList.remove('print-simplex');
+    simplexTools.printReport.innerHTML = '';
+    showMessage(`No se pudo generar la entrega: ${error?.message || error}`, 'error');
+  }
+}
+function auditSimplexProcedure(problem, result) {
+  const findings = [];
+  const iterations = Array.isArray(result?.iterations) ? result.iterations : [];
+  const columns = Array.isArray(result?.columns) ? result.columns : [];
+  const scaleValues = [];
+  iterations.forEach(it => {
+    (it?.tableau || []).forEach(row => (row || []).forEach(v => { if (Number.isFinite(v)) scaleValues.push(v); }));
+    (it?.pivotSteps || []).forEach(step => (step?.after || []).forEach(v => { if (Number.isFinite(v)) scaleValues.push(v); }));
+  });
+  const tolerance = Math.max(1e-8, verifierTolerance(scaleValues));
+  const close = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(a), Math.abs(b));
+  const add = (level, title, detail, iteration = null) => findings.push({ level, title, detail, iteration });
+  const ok = (title, detail, iteration = null) => add('ok', title, detail, iteration);
+  const warn = (title, detail, iteration = null) => add('warning', title, detail, iteration);
+  const fail = (title, detail, iteration = null) => add('danger', title, detail, iteration);
+
+  if (!problem || !result) {
+    fail('No hay resolución para auditar', 'Resuelve un ejercicio antes de ejecutar la auditoría.');
+    return { findings, tolerance, score: { ok: 0, warning: 0, danger: 1 }, passed: false };
+  }
+  if (!iterations.length) {
+    fail('No se encontró el procedimiento', 'El resultado no contiene tableaux o iteraciones almacenadas.');
+    return { findings, tolerance, score: { ok: 0, warning: 0, danger: 1 }, passed: false };
+  }
+
+  let totalChecks = 0;
+  let lastTableau = null;
+  let lastBase = null;
+  let previousState = null;
+  const check = (condition, goodTitle, goodDetail, badTitle, badDetail, iteration = null) => {
+    totalChecks += 1;
+    if (condition) ok(goodTitle, goodDetail, iteration);
+    else fail(badTitle, badDetail, iteration);
+  };
+
+  iterations.forEach((it, idx) => {
+    const label = it.iterationNumber ?? idx;
+    const tableau = Array.isArray(it.tableau) ? it.tableau : null;
+    const base = Array.isArray(it.base) ? it.base : null;
+    const stage = String(it.stage || 'Procedimiento');
+    if (!tableau || !tableau.length) {
+      fail('Tableau ausente', 'No se encontró una tabla válida en este paso.', label);
+      return;
+    }
+    const widths = tableau.map(row => Array.isArray(row) ? row.length : 0);
+    const rectangular = widths.every(w => w === widths[0] && w > 0);
+    check(rectangular, 'Tableau estructuralmente consistente', 'Todas las filas tienen el mismo número de columnas.', 'Tableau inconsistente', 'Las filas no tienen el mismo número de columnas.', label);
+    if (!base || base.length !== Math.max(0, tableau.length - 1)) {
+      fail('Base inconsistente', `Se esperaban ${Math.max(0, tableau.length - 1)} filas básicas y se encontraron ${base?.length ?? 0}.`, label);
+    } else {
+      ok('Base y tableau tienen dimensiones compatibles', `${base.length} fila(s) básica(s) para ${Math.max(0, tableau.length - 1)} restricción(es).`, label);
+    }
+    if (rectangular && columns.length && tableau[0].length !== columns.length + 1) {
+      fail('Columnas del tableau no coinciden', `El tableau tiene ${tableau[0].length - 1} columnas de variables y la estructura registra ${columns.length}.`, label);
+    }
+
+    if (it.type === 'iteration' && it.pivot && Array.isArray(it.before)) {
+      const before = it.before;
+      const pivot = it.pivot;
+      const rowsBefore = before.length;
+      const colsBefore = before[0]?.length || 0;
+      const validCoords = Number.isInteger(pivot.row) && Number.isInteger(pivot.col) && pivot.row > 0 && pivot.row < rowsBefore && pivot.col >= 0 && pivot.col < colsBefore - 1;
+      check(validCoords, 'Coordenadas del pivote válidas', `Fila ${pivot.row}, columna ${pivot.col}.`, 'Coordenadas del pivote inválidas', 'El pivote apunta fuera del tableau anterior.', label);
+      if (!validCoords) return;
+
+      const actualPivot = before[pivot.row][pivot.col];
+      check(close(actualPivot, pivot.value), 'Elemento pivote coincide', `El pivote registrado (${formatNumber(pivot.value)}) coincide con el valor del tableau (${formatNumber(actualPivot)}).`, 'Elemento pivote no coincide', `Se registró ${formatNumber(pivot.value)} pero el tableau contenía ${formatNumber(actualPivot)}.`, label);
+
+      const enteringColumn = columns[pivot.col];
+      const entering = enteringColumn?.name || '';
+      check(Boolean(entering) && entering === pivot.entering, 'Variable entrante coincide con su columna', `${entering} corresponde a la columna seleccionada.`, 'Variable entrante inconsistente', `La columna seleccionada corresponde a ${entering || 'una variable desconocida'}, pero se registró ${pivot.entering || 'sin nombre'}.`, label);
+      const objectiveCoeff = before[0][pivot.col];
+      check(objectiveCoeff < -EPS, 'Variable entrante sigue la regla de mejora', `${entering} tiene coeficiente ${formatNumber(objectiveCoeff)} en la fila objetivo.`, 'Variable entrante no cumple la regla de entrada', `${entering || 'La columna seleccionada'} tiene coeficiente ${formatNumber(objectiveCoeff)}; no es negativo según la convención usada por el motor.`, label);
+
+      const baseBefore = previousState?.base || (idx === 0 ? null : iterations[idx - 1]?.base) || null;
+      if (baseBefore && baseBefore.length > pivot.row - 1) {
+        const expectedLeaving = baseBefore[pivot.row - 1];
+        check(expectedLeaving === pivot.leaving, 'Variable saliente coincide con la base previa', `${expectedLeaving} era la variable básica de esa fila antes del pivote.`, 'Variable saliente inconsistente', `La fila tenía ${expectedLeaving}, pero se registró ${pivot.leaving}.`, label);
+      } else {
+        warn('No se pudo reconstruir la base previa', 'La auditoría no pudo verificar el nombre de la variable saliente en este paso.', label);
+      }
+
+      const ratios = Array.isArray(it.ratios) ? it.ratios : [];
+      const rhsCol = colsBefore - 1;
+      const recomputed = [];
+      for (let r = 1; r < rowsBefore; r += 1) {
+        const coefficient = before[r][pivot.col];
+        const rhs = before[r][rhsCol];
+        const ratio = coefficient > EPS ? rhs / coefficient : null;
+        recomputed.push({ row: r - 1, base: baseBefore?.[r - 1], numerator: rhs, denominator: coefficient, ratio });
+      }
+      const ratioDataOk = recomputed.every((rr) => {
+        const stored = ratios.find(x => x.row === rr.row) || ratios[rr.row];
+        if (!stored) return false;
+        const ratioSame = rr.ratio === null && (stored.ratio === null || stored.ratio === undefined) || close(rr.ratio, stored.ratio);
+        return ratioSame && close(rr.numerator, stored.numerator) && close(rr.denominator, stored.denominator);
+      });
+      check(ratioDataOk, 'Prueba de razón reproducible', 'Los numeradores, denominadores y razones almacenadas coinciden con el tableau anterior.', 'Prueba de razón inconsistente', 'Alguna razón guardada no coincide con los valores del tableau anterior.', label);
+      const validRatios = recomputed.filter(x => x.ratio !== null && Number.isFinite(x.ratio) && x.ratio >= -EPS);
+      if (validRatios.length) {
+        const minRatio = Math.min(...validRatios.map(x => x.ratio));
+        const selected = recomputed.find(x => x.row === pivot.row - 1);
+        check(Boolean(selected && selected.ratio !== null && Math.abs(selected.ratio - minRatio) <= tolerance * Math.max(1, Math.abs(minRatio))), 'Variable saliente respeta la razón mínima', `La fila seleccionada tiene razón ${formatNumber(selected?.ratio)} y es mínima entre las razones válidas.`, 'Variable saliente no respeta la razón mínima', `La fila seleccionada tiene razón ${formatNumber(selected?.ratio)}; la mínima válida era ${formatNumber(minRatio)}.`, label);
+      } else {
+        warn('No hay razones válidas para verificar', 'Este caso puede corresponder a un problema no acotado; se revisará su condición de terminación.', label);
+      }
+
+      const simulated = before.map(row => row.slice());
+      try {
+        const simPivot = simulated[pivot.row][pivot.col];
+        if (Math.abs(simPivot) <= EPS) throw new Error('pivote nulo');
+        for (let c = 0; c < simulated[pivot.row].length; c += 1) simulated[pivot.row][c] /= simPivot;
+        for (let r = 0; r < simulated.length; r += 1) {
+          if (r === pivot.row) continue;
+          const factor = simulated[r][pivot.col];
+          if (Math.abs(factor) <= EPS) continue;
+          for (let c = 0; c < simulated[r].length; c += 1) simulated[r][c] -= factor * simulated[pivot.row][c];
+        }
+        const tableMatches = tableau.length === simulated.length && tableau.every((row, r) => row.length === simulated[r].length && row.every((v, c) => close(v, clean(simulated[r][c]))));
+        check(tableMatches, 'Pivote numéricamente reproducible', 'Aplicando normalización y eliminación se obtiene el mismo tableau almacenado.', 'Pivote numéricamente inconsistente', 'Al reproducir el pivote se obtiene una tabla distinta a la almacenada.', label);
+
+        const pivotColumnCanonical = tableau.every((row, r) => close(row[pivot.col], r === pivot.row ? 1 : 0));
+        check(pivotColumnCanonical, 'Columna pivote queda canónica', 'El elemento pivote queda en 1 y los demás elementos de la columna quedan en 0.', 'Columna pivote no quedó canónica', 'La columna pivote no terminó como vector unidad.', label);
+
+        const steps = Array.isArray(it.pivotSteps) ? it.pivotSteps : [];
+        if (!steps.length) {
+          warn('Pasos educativos no disponibles', 'El motor resolvió el pivote, pero este paso no contiene el desglose educativo almacenado.', label);
+        } else {
+          const normalized = before[pivot.row].map(v => clean(v / simPivot));
+          const normStep = steps[0];
+          const normOk = Array.isArray(normStep.after) && normStep.after.length === normalized.length && normStep.after.every((v, c) => close(v, normalized[c]));
+          check(normOk, 'Normalización educativa coincide', 'La fila pivote mostrada en el procedimiento coincide con la normalización numérica.', 'Normalización educativa inconsistente', 'La fila normalizada mostrada no coincide con la operación real.', label);
+          const eliminationSteps = steps.slice(1);
+          const expectedEliminations = [];
+          for (let r = 0; r < before.length; r += 1) {
+            if (r === pivot.row) continue;
+            const factor = before[r][pivot.col];
+            if (Math.abs(factor) <= EPS) continue;
+            expectedEliminations.push({ r, after: before[r].map((v, c) => clean(v - factor * normalized[c])) });
+          }
+          const elimOk = eliminationSteps.length === expectedEliminations.length && eliminationSteps.every((step, j) => {
+            const expected = expectedEliminations[j].after;
+            return Array.isArray(step.after) && step.after.length === expected.length && step.after.every((v, c) => close(v, expected[c]));
+          });
+          check(elimOk, 'Operaciones de eliminación coinciden', 'Cada fila educativa produce la misma fila que el cálculo del pivote.', 'Operaciones de eliminación inconsistentes', 'Alguna operación de fila mostrada no coincide con el cálculo numérico.', label);
+        }
+
+        if (base && base[pivot.row - 1] === pivot.entering) {
+          ok('Cambio de base registrado correctamente', `${pivot.leaving} sale y ${pivot.entering} pasa a representar la fila pivote.`, label);
+        } else {
+          fail('Cambio de base inconsistente', `La fila pivote debía quedar identificada por ${pivot.entering}.`, label);
+        }
+      } catch (error) {
+        fail('No se pudo reproducir el pivote', `La auditoría encontró un problema al recalcular la iteración: ${error.message || error}.`, label);
+      }
+    } else if (it.type === 'objective') {
+      if (Array.isArray(it.phase1ObjectiveBefore)) ok('Transición de objetivo registrada', 'El cambio de objetivo conserva el estado previo necesario para explicar la fase.', label);
+      else if (it.transition === 'phase2-objective' && Array.isArray(it.originalObjectiveRow)) ok('Restauración de Z registrada', 'La transición hacia Fase II contiene la fila objetivo original para reconstrucción.', label);
+      else warn('Transición sin evidencia completa', 'El procedimiento contiene un cambio de objetivo, pero faltan algunos datos auxiliares para auditarlo completamente.', label);
+    }
+
+    lastTableau = tableau;
+    lastBase = base;
+    previousState = { tableau, base };
+  });
+
+  if (lastTableau && result.status === 'optimal') {
+    const objectiveRow = lastTableau[0] || [];
+    const rhsIndex = objectiveRow.length - 1;
+    const eligible = columns.map((c, i) => ({ c, i })).filter(x => x.i < rhsIndex && x.c.kind !== 'artificial');
+    const bad = eligible.filter(({ i }) => objectiveRow[i] < -tolerance);
+    check(bad.length === 0, 'Criterio de optimalidad satisfecho', 'No quedan coeficientes negativos en la fila objetivo entre las variables elegibles.', 'Criterio de optimalidad no coincide', `Quedan ${bad.length} coeficiente(s) negativo(s) en la fila objetivo: ${bad.map(x => x.c.name).join(', ')}.`, 'final');
+  } else if (result.status === 'unbounded') {
+    ok('Condición de no acotamiento documentada', 'El resultado terminó porque la variable entrante no tuvo una fila saliente válida; la auditoría conserva la evidencia del paso.', 'final');
+  } else if (result.status === 'infeasible') {
+    ok('Terminación por infactibilidad documentada', 'La resolución terminó con estado de infactibilidad; las iteraciones realizadas quedan auditadas hasta ese punto.', 'final');
+  } else if (result.status === 'cycle') {
+    warn('Terminación por posible ciclo', 'El motor detectó repetición de tableau; el auditor verifica las iteraciones hasta la detección.', 'final');
+  } else if (result.status === 'limit') {
+    warn('Límite de iteraciones alcanzado', 'La auditoría no interpreta el límite como un error matemático por sí mismo.', 'final');
+  }
+
+  const score = findings.reduce((acc, f) => { acc[f.level] = (acc[f.level] || 0) + 1; return acc; }, { ok: 0, warning: 0, danger: 0 });
+  return { findings, tolerance, score, passed: score.danger === 0 };
+}
+
+function renderSimplexAudit() {
+  if (!simplexTools.audit || !currentLastProblem || !currentLastResult) return;
+  const audit = auditSimplexProcedure(currentLastProblem, currentLastResult);
+  const total = audit.findings.length;
+  const summary = `\n    <div class="audit-summary-grid">\n      <div><span>Comprobaciones OK</span><strong>${audit.score.ok}</strong></div>\n      <div><span>Advertencias</span><strong>${audit.score.warning}</strong></div>\n      <div><span>Inconsistencias</span><strong>${audit.score.danger}</strong></div>\n      <div><span>Tolerancia</span><strong>±${escapeHtml(formatCompactNumber(audit.tolerance))}</strong></div>\n    </div>`;
+  const grouped = audit.findings.map((f) => {
+    const icon = f.level === 'ok' ? '✓' : f.level === 'warning' ? '!' : '×';
+    const iter = f.iteration != null ? `<small>${f.iteration === 'final' ? 'Estado final' : `Iteración ${escapeHtml(f.iteration)}`}</small>` : '';
+    return `<div class="audit-row ${f.level}"><span class="audit-mark" aria-hidden="true">${icon}</span><div><strong>${escapeHtml(f.title)}</strong><p>${escapeHtml(f.detail)}</p>${iter}</div></div>`;
+  }).join('');
+  simplexTools.audit.innerHTML = `\n    <div class="utility-panel-title"><div><strong>Auditoría del procedimiento</strong><small>Revisión interna de consistencia numérica, selección de pivotes y operaciones de fila. No sustituye la revisión matemática del ejercicio.</small></div></div>\n    ${summary}\n    <div class="audit-note"><strong>${audit.passed ? 'El procedimiento es consistente con los datos almacenados.' : 'Se encontraron inconsistencias que conviene revisar.'}</strong><span>${total} comprobación(es) registradas para esta resolución.</span></div>\n    <details class="audit-details"><summary>Ver revisión completa</summary><div class="audit-list">${grouped}</div></details>`;
+}
+
+function verifierTolerance(values = []) {
+  const scale = Math.max(1, ...values.map(v => Math.abs(Number(v) || 0)));
+  return Math.max(1e-7, scale * 1e-8);
+}
+
+function verifierNumberInput(label, index, value = '') {
+  return `<label>${label}<input class="verify-value" data-index="${index}" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(value)}"></label>`;
+}
+
+function renderSimplexVerifier() {
+  if (!simplexTools.verifier || !currentLastProblem) return;
+  const n = currentLastProblem.objective.length;
+  const hasOptimal = currentLastResult?.status === 'optimal' && currentLastResult?.solution?.variables?.length === n;
+  const defaultValues = Array(n).fill('');
+  const labels = defaultValues.map((v, i) => verifierNumberInput(`X${i + 1}`, i, v)).join('');
+  simplexTools.verifier.innerHTML = `
+    <div class="utility-panel-title">
+      <div><strong>Verificar una solución</strong><small>Escribe una solución calculada a mano para comprobar restricciones, no negatividad y función objetivo.</small></div>
+      ${hasOptimal ? `<button class="icon-btn glass-action simplex-verifier-fill" type="button" title="Cargar solución encontrada por Simplex" aria-label="Cargar solución encontrada por Simplex"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6M4 4h16v16H4z"/></svg></button>` : ''}
+    </div>
+    <div class="simplex-verifier-grid">
+      ${labels}
+      <label>Z (opcional)<input id="simplex-verify-z-input" type="text" inputmode="decimal" autocomplete="off" placeholder="Se calcula automáticamente"></label>
+    </div>
+    <div class="actions verifier-actions">
+      <button class="btn secondary" id="simplex-run-verify" type="button">Comprobar</button>
+      ${hasOptimal ? `<button class="btn secondary" id="simplex-clear-verify" type="button">Limpiar</button>` : ''}
+    </div>
+    <div id="simplex-verify-summary" class="verifier-summary" aria-live="polite"></div>
+    <div id="simplex-verify-result" aria-live="polite"></div>`;
+
+  const fillFromCurrent = () => {
+    const solution = currentLastResult?.solution?.variables;
+    if (!Array.isArray(solution)) return;
+    simplexTools.verifier.querySelectorAll('.verify-value').forEach((input, i) => {
+      input.value = formatNumber(solution[i] ?? 0);
+    });
+    const zInput = simplexTools.verifier.querySelector('#simplex-verify-z-input');
+    if (zInput) zInput.value = formatNumber(evaluateOriginalObjective(currentLastProblem, { variables: solution }));
+  };
+
+  simplexTools.verifier.querySelector('.simplex-verifier-fill')?.addEventListener('click', fillFromCurrent);
+  simplexTools.verifier.querySelector('#simplex-clear-verify')?.addEventListener('click', () => {
+    simplexTools.verifier.querySelectorAll('.verify-value').forEach(input => { input.value = ''; });
+    const zInput = simplexTools.verifier.querySelector('#simplex-verify-z-input');
+    if (zInput) zInput.value = '';
+    simplexTools.verifier.querySelector('#simplex-verify-summary').innerHTML = '';
+    simplexTools.verifier.querySelector('#simplex-verify-result').innerHTML = '';
+  });
+
+  simplexTools.verifier.querySelector('#simplex-run-verify')?.addEventListener('click', () => {
+    const inputs = [...simplexTools.verifier.querySelectorAll('.verify-value')];
+    const vals = inputs.map(input => parseFinite(input.value));
+    const resultNode = simplexTools.verifier.querySelector('#simplex-verify-result');
+    const summaryNode = simplexTools.verifier.querySelector('#simplex-verify-summary');
+    const suppliedZInput = simplexTools.verifier.querySelector('#simplex-verify-z-input');
+    if (vals.some(v => v === null)) {
+      summaryNode.innerHTML = '';
+      resultNode.innerHTML = '<div class="verifier-result bad"><strong>Completa todos los valores de las variables.</strong><p>Usa números decimales, fracciones o formatos numéricos aceptados por IO Solver.</p></div>';
+      return;
+    }
+
+    const scaleValues = [...vals, ...currentLastProblem.objective, ...currentLastProblem.constraints.flatMap(c => [...c.coeffs, c.rhs])];
+    const tolerance = verifierTolerance(scaleValues);
+    const check = feasibilityCheck(currentLastProblem, vals);
+    const z = clean(currentLastProblem.objective.reduce((sum, c, i) => sum + c * vals[i], 0));
+    const suppliedZText = String(suppliedZInput?.value || '').trim();
+    const suppliedZ = suppliedZText ? parseFinite(suppliedZText) : null;
+    const suppliedZValid = !suppliedZText || suppliedZ !== null;
+    const zMatchesSupplied = suppliedZ !== null && Math.abs(suppliedZ - z) <= tolerance;
+    const expected = currentLastResult?.solution?.variables || [];
+    const expectedZ = expected.length === n ? evaluateOriginalObjective(currentLastProblem, { variables: expected }) : null;
+    const sameVector = expected.length === vals.length && vals.every((v, i) => Math.abs(v - expected[i]) <= tolerance);
+    const sameObjective = expectedZ !== null && Math.abs(z - expectedZ) <= tolerance;
+    const allOk = suppliedZValid && check.nonnegative && check.checks.every(x => x.ok);
+
+    const nonnegativeDetail = currentLastProblem.nonnegative
+      ? vals.map((v, i) => `<span class="verifier-chip ${v >= -tolerance ? 'ok' : 'bad'}">X${i + 1} ≥ 0 ${v >= -tolerance ? '✓' : '✕'}</span>`).join('')
+      : '<span class="verifier-chip neutral">Variables libres</span>';
+    const checksDetail = check.checks.map((x, i) => {
+      const gap = Math.abs(x.lhs - x.rhs);
+      return `<div class="verifier-check-row ${x.ok ? 'ok' : 'bad'}"><span>R${i + 1}</span><strong>${formatNumber(x.lhs)} ${escapeHtml(x.op)} ${formatNumber(x.rhs)}</strong><small>${x.ok ? 'Cumple' : `No cumple · diferencia ${formatNumber(gap)}`}</small></div>`;
+    }).join('');
+
+    summaryNode.innerHTML = `<div class="verifier-summary-grid"><div><span>Z calculada</span><strong>${escapeHtml(formatNumber(z))}</strong></div><div><span>Objetivo</span><strong>${currentLastProblem.type === 'max' ? 'Maximización' : 'Minimización'}</strong></div><div><span>Tolerancia</span><strong>±${escapeHtml(formatCompactNumber(tolerance))}</strong></div></div>`;
+
+    let comparison = '';
+    if (!suppliedZValid) {
+      comparison = '<div class="verifier-result bad"><strong>El valor de Z introducido no es válido.</strong></div>';
+    } else if (!allOk) {
+      comparison = `<div class="verifier-result bad"><strong>La solución no es factible.</strong><p>Revisa las restricciones marcadas y la no negatividad.</p></div>`;
+    } else if (hasOptimal && sameObjective) {
+      comparison = `<div class="verifier-result ok"><strong>${sameVector ? 'Coincide con la solución encontrada por Simplex.' : 'La solución es óptima en valor de Z.'}</strong><p>${sameVector ? 'Los valores de las variables coinciden dentro de la tolerancia.' : 'Es factible y obtiene el mismo valor objetivo que el óptimo almacenado. Esto puede representar otra solución óptima.'}</p>${suppliedZ !== null ? `<small>${zMatchesSupplied ? 'La Z introducida también coincide con la Z calculada.' : 'La Z introducida no coincide con la Z calculada.'}</small>` : ''}</div>`;
+    } else {
+      comparison = `<div class="verifier-result ok"><strong>Solución factible.</strong><p>Las restricciones cumplen. Z = ${escapeHtml(formatNumber(z))}.</p>${suppliedZ !== null ? `<small>${zMatchesSupplied ? 'La Z introducida coincide con la calculada.' : 'La Z introducida no coincide con la calculada.'}</small>` : ''}</div>`;
+    }
+
+    resultNode.innerHTML = `<div class="verifier-checks"><div class="verifier-checks-head"><strong>Comprobaciones</strong><div>${nonnegativeDetail}</div></div>${checksDetail}</div>${comparison}`;
+  });
+}
+
+function setSimplexUtilityButtonState(button, active) {
+  if (!button) return;
+  button.classList.toggle('is-active', !!active);
+  button.setAttribute('aria-pressed', active ? 'true' : 'false');
+}
+
+function createSimplexPracticeState() {
+  return {
+    mode: 'guided',
+    questions: [],
+    index: 0,
+    responses: [],
+    sessionStarted: false,
+  };
+}
+
+let simplexPracticeState = createSimplexPracticeState();
+
+function practiceNumberOptions(actual, sourceValues = []) {
+  const values = [];
+  const push = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return;
+    if (values.some(v => Math.abs(v - n) <= Math.max(1e-8, Math.abs(n) * 1e-8))) return;
+    values.push(n);
+  };
+  push(actual);
+  sourceValues.forEach(push);
+  push(Number(actual) + (Math.abs(Number(actual)) >= 1 ? 1 : 0.5));
+  push(Number(actual) - (Math.abs(Number(actual)) >= 1 ? 1 : 0.5));
+  if (Math.abs(Number(actual)) > 1e-10) push(Number(actual) * 2);
+  if (values.length < 4) push(0);
+  return values.slice(0, 4);
+}
+
+function buildSimplexPracticeQuestions(problem, result) {
+  const pivots = (result?.iterations || []).filter(it => it?.type === 'iteration' && it?.pivot && Array.isArray(it.before));
+  const columns = Array.isArray(result?.columns) ? result.columns : [];
+  const questions = [];
+
+  pivots.forEach((it, pivotIndex) => {
+    const label = `Iteración ${it.iterationNumber || pivotIndex + 1}`;
+    const objectiveRow = it.before[0] || [];
+    const basicNames = new Set(Array.isArray(it.base) ? it.base : []);
+    const enteringCandidates = columns.map((c, j) => ({ name: c.name, coefficient: Number(objectiveRow[j]), kind: c.kind }))
+      .filter(x => x.kind !== 'artificial' && Number.isFinite(x.coefficient) && x.coefficient < -EPS && !basicNames.has(x.name));
+    const bestEntering = enteringCandidates.length ? Math.min(...enteringCandidates.map(x => x.coefficient)) : Number(objectiveRow[it.pivot.col]);
+    const acceptedEntering = enteringCandidates.filter(x => Math.abs(x.coefficient - bestEntering) <= Math.max(EPS, Math.abs(bestEntering) * 1e-8)).map(x => x.name);
+    const enteringOptions = [...new Set([it.pivot.entering, ...enteringCandidates.map(x => x.name)])].slice(0, 5);
+
+    const validRatios = (it.ratios || []).filter(r => r?.ratio !== null && Number.isFinite(Number(r.ratio)) && Number(r.ratio) >= -EPS);
+    const minRatio = validRatios.length ? Math.min(...validRatios.map(r => Number(r.ratio))) : Number.NaN;
+    const acceptedLeaving = validRatios.filter(r => Math.abs(Number(r.ratio) - minRatio) <= Math.max(EPS, Math.abs(minRatio) * 1e-8)).map(r => r.base);
+    const leavingOptions = [...new Set([it.pivot.leaving, ...validRatios.map(r => r.base)])].slice(0, 5);
+    const actualRatio = validRatios.find(r => r.base === it.pivot.leaving)?.ratio;
+    const ratioDistractors = validRatios.map(r => Number(r.ratio)).filter(v => Number.isFinite(v) && Math.abs(v - Number(actualRatio)) > 1e-8);
+    const ratioOptions = Number.isFinite(Number(actualRatio)) ? practiceNumberOptions(Number(actualRatio), ratioDistractors) : [];
+
+    const pivotColumnValues = it.before.slice(1).map(row => Number(row[it.pivot.col])).filter(Number.isFinite).filter(v => Math.abs(v - Number(it.pivot.value)) > 1e-8);
+    const pivotOptions = practiceNumberOptions(Number(it.pivot.value), pivotColumnValues);
+
+    questions.push({
+      id: `${pivotIndex}-entering`, iteration: label, type: 'choice',
+      prompt: '¿Qué variable puede entrar a la base?', options: enteringOptions,
+      accepted: acceptedEntering.length ? acceptedEntering : [it.pivot.entering],
+      expected: it.pivot.entering,
+      explanation: `En ${label}, se elige una variable con el coeficiente más negativo de la fila objetivo ${String(it.stage || '').includes('Fase I') && !String(it.stage || '').includes('Fase II') ? 'W' : 'Z'}. ${acceptedEntering.length > 1 ? 'En este paso hay empate y varias variables son válidas.' : `El procedimiento registró ${it.pivot.entering}.`}`,
+      hint: 'Busca el coeficiente negativo más pequeño de la fila objetivo entre las variables que pueden entrar.'
+    });
+    questions.push({
+      id: `${pivotIndex}-ratio`, iteration: label, type: 'number',
+      prompt: '¿Cuál es la razón mínima válida de la prueba de razón?', options: ratioOptions,
+      accepted: Number.isFinite(Number(actualRatio)) ? [Number(minRatio)] : [],
+      expected: actualRatio, explanation: validRatios.length ? 'La razón válida se obtiene con Solución ÷ coeficiente positivo de la columna entrante y se selecciona la menor razón no negativa.' : 'No hay una razón válida en este paso.',
+      hint: 'Solo usa denominadores positivos y toma la menor razón admisible.'
+    });
+    questions.push({
+      id: `${pivotIndex}-leaving`, iteration: label, type: 'choice',
+      prompt: acceptedLeaving.length > 1 ? '¿Qué variable puede salir según la prueba de razón?' : '¿Qué variable sale de la base?', options: leavingOptions,
+      accepted: acceptedLeaving.length ? acceptedLeaving : [it.pivot.leaving],
+      expected: it.pivot.leaving,
+      explanation: acceptedLeaving.length > 1 ? `Existe empate en la razón mínima; ${acceptedLeaving.join(' y ')} pueden ser variables salientes válidas. El procedimiento almacenó ${it.pivot.leaving}.` : `La razón mínima corresponde a ${it.pivot.leaving}, que sale de la base.`
+      ,hint: 'Calcula las razones válidas de cada fila y identifica la menor.'
+    });
+    questions.push({
+      id: `${pivotIndex}-pivot`, iteration: label, type: 'number',
+      prompt: '¿Cuál es el elemento pivote?', options: pivotOptions,
+      accepted: [Number(it.pivot.value)], expected: it.pivot.value,
+      explanation: `El pivote es el valor ubicado en la intersección de la fila de ${it.pivot.leaving} y la columna de ${it.pivot.entering}.`,
+      hint: 'Ubica la fila saliente y la columna entrante; su intersección es el elemento pivote.'
+    });
+  });
+  return questions;
+}
+
+function normalizePracticeAnswer(value) {
+  return String(value ?? '').trim();
+}
+
+function practiceAnswerMatches(question, rawAnswer) {
+  if (question.type === 'number') {
+    const answer = parseFinite(rawAnswer);
+    if (answer === null || !question.accepted.length) return { validInput: answer !== null, correct: false, parsed: answer };
+    const tolerance = verifierTolerance([...question.accepted, Number(question.expected)]);
+    return { validInput: true, correct: question.accepted.some(expected => Math.abs(Number(expected) - answer) <= tolerance), parsed: answer };
+  }
+  const answer = normalizePracticeAnswer(rawAnswer);
+  return { validInput: !!answer, correct: question.accepted.some(expected => answer === String(expected)) , parsed: answer };
+}
+
+function renderSimplexPractice() {
+  if (!simplexTools.practice) return;
+  const state = simplexPracticeState;
+  if (!state.questions.length) {
+    simplexTools.practice.innerHTML = `<div class="utility-panel-title"><div><strong>Modo práctica</strong><small>Este ejercicio no contiene iteraciones de pivote suficientes para generar preguntas de práctica.</small></div></div>`;
+    return;
+  }
+  const q = state.questions[state.index];
+  const response = state.responses[state.index];
+  const progress = `${state.index + 1} de ${state.questions.length}`;
+  const options = q.type === 'choice'
+    ? `<div class="practice-options">${q.options.map((option, i) => `<label class="practice-option"><input type="radio" name="simplex-practice-answer" value="${escapeHtml(option)}" ${response?.answer === option ? 'checked' : ''}><span>${escapeHtml(option)}</span></label>`).join('')}</div>`
+    : `<label class="practice-number-label">Tu respuesta<input id="simplex-practice-number" type="text" inputmode="decimal" autocomplete="off" placeholder="Escribe un número" value="${response?.answer ?? ''}"></label>`;
+  const feedback = response?.feedback ? `<div class="practice-feedback ${response.correct ? 'ok' : 'bad'}"><strong>${escapeHtml(response.feedback.title)}</strong><p>${escapeHtml(response.feedback.detail)}</p>${response.feedback.hint ? `<small>${escapeHtml(response.feedback.hint)}</small>` : ''}</div>` : '';
+  const actions = response?.advance
+    ? `<button class="btn primary" id="simplex-practice-next" type="button">${state.index === state.questions.length - 1 ? 'Ver resultado' : 'Siguiente'}</button>`
+    : `<button class="btn primary" id="simplex-practice-submit" type="button">Comprobar</button>`;
+
+  simplexTools.practice.innerHTML = `
+    <div class="utility-panel-title practice-header">
+      <div><strong>Modo práctica</strong><small>${state.mode === 'exam' ? 'Modo examen · las respuestas se revisan al final.' : 'Modo guiado · recibe una explicación al comprobar cada respuesta.'}</small></div>
+      <div class="practice-progress">${progress}</div>
+    </div>
+    <div class="practice-mode-row">
+      <label class="learn-toggle practice-mode-toggle"><input id="simplex-practice-mode" type="checkbox" ${state.mode === 'exam' ? 'checked' : ''}><span class="switch-visual" aria-hidden="true"></span><span><strong>Modo examen</strong><small>Sin pistas ni corrección hasta terminar.</small></span></label>
+      <span class="practice-iteration">${escapeHtml(q.iteration)}</span>
+    </div>
+    <div class="practice-question"><span class="practice-kicker">Pregunta ${progress}</span><h3>${escapeHtml(q.prompt)}</h3>${options}</div>
+    ${feedback}
+    <div class="actions practice-actions">${actions}<button class="btn secondary" id="simplex-practice-restart" type="button">Reiniciar</button></div>`;
+
+  simplexTools.practice.querySelector('#simplex-practice-mode')?.addEventListener('change', (e) => {
+    state.mode = e.target.checked ? 'exam' : 'guided';
+    renderSimplexPractice();
+  });
+  simplexTools.practice.querySelector('#simplex-practice-submit')?.addEventListener('click', () => {
+    let raw = '';
+    if (q.type === 'choice') raw = simplexTools.practice.querySelector('input[name="simplex-practice-answer"]:checked')?.value || '';
+    else raw = simplexTools.practice.querySelector('#simplex-practice-number')?.value || '';
+    const checked = practiceAnswerMatches(q, raw);
+    if (!checked.validInput) {
+      state.responses[state.index] = { ...(state.responses[state.index] || {}), answer: raw, correct: false, feedback: { title: 'Falta una respuesta', detail: q.type === 'number' ? 'Escribe un número válido antes de comprobar.' : 'Selecciona una opción antes de comprobar.', hint: '' }, advance: false };
+      renderSimplexPractice();
+      return;
+    }
+    const prev = state.responses[state.index] || {};
+    const firstTry = !prev.attempted;
+    state.responses[state.index] = {
+      answer: checked.parsed,
+      correct: checked.correct,
+      attempted: true,
+      firstTryCorrect: firstTry && checked.correct,
+      feedback: state.mode === 'exam'
+        ? { title: 'Respuesta registrada', detail: 'Esta respuesta se conservará para el resultado final.', hint: '' }
+        : checked.correct
+          ? { title: 'Correcto', detail: q.explanation, hint: '' }
+          : { title: 'Todavía no', detail: 'La respuesta no coincide con el criterio esperado para este paso.', hint: q.hint },
+      advance: state.mode === 'exam' || checked.correct,
+    };
+    renderSimplexPractice();
+  });
+  simplexTools.practice.querySelector('#simplex-practice-next')?.addEventListener('click', () => {
+    if (state.index === state.questions.length - 1) {
+      renderSimplexPracticeSummary();
+      return;
+    }
+    state.index += 1;
+    renderSimplexPractice();
+  });
+  simplexTools.practice.querySelector('#simplex-practice-restart')?.addEventListener('click', () => startSimplexPractice(state.mode));
+}
+
+function renderSimplexPracticeSummary() {
+  if (!simplexTools.practice) return;
+  const state = simplexPracticeState;
+  const total = state.questions.length;
+  const correct = state.responses.filter(r => r?.correct).length;
+  const firstTry = state.responses.filter(r => r?.firstTryCorrect).length;
+  const pct = total ? Math.round((correct / total) * 100) : 0;
+  const rows = state.questions.map((q, i) => {
+    const r = state.responses[i];
+    const expected = Array.isArray(q.expected) ? q.expected.join(', ') : q.expected;
+    return `<div class="practice-review-row ${r?.correct ? 'ok' : 'bad'}"><span>${r?.correct ? '✓' : '×'}</span><div><strong>${escapeHtml(q.prompt)}</strong><small>Tu respuesta: ${escapeHtml(String(r?.answer ?? '—'))} · Referencia: ${escapeHtml(String(expected ?? '—'))}</small></div></div>`;
+  }).join('');
+  simplexTools.practice.innerHTML = `
+    <div class="utility-panel-title"><div><strong>Resultado de la práctica</strong><small>${state.mode === 'exam' ? 'Revisión final del modo examen.' : 'Resumen de tu sesión guiada.'}</small></div></div>
+    <div class="practice-score-grid"><div><span>Correctas</span><strong>${correct}/${total}</strong></div><div><span>Porcentaje</span><strong>${pct}%</strong></div><div><span>Primer intento</span><strong>${firstTry}/${total}</strong></div></div>
+    <div class="practice-result-note ${pct >= 70 ? 'ok' : 'bad'}"><strong>${pct >= 70 ? 'Sesión completada' : 'Conviene repetir algunos pasos'}</strong><p>La práctica sirve para entrenar la selección de variables, la prueba de razón y la identificación del pivote.</p></div>
+    <details class="practice-review"><summary>Ver revisión completa</summary><div class="practice-review-list">${rows}</div></details>
+    <div class="actions practice-actions"><button class="btn primary" id="simplex-practice-again" type="button">Repetir</button><button class="btn secondary" id="simplex-practice-close" type="button">Cerrar</button></div>`;
+  simplexTools.practice.querySelector('#simplex-practice-again')?.addEventListener('click', () => startSimplexPractice(state.mode));
+  simplexTools.practice.querySelector('#simplex-practice-close')?.addEventListener('click', () => {
+    simplexTools.practice.classList.add('hidden');
+    setSimplexUtilityButtonState(simplexTools.practiceBtn, false);
+  });
+}
+
+function startSimplexPractice(mode = 'guided') {
+  if (!currentLastProblem || !currentLastResult) {
+    showMessage('Resuelve primero un ejercicio para iniciar la práctica.', 'error');
+    return;
+  }
+  simplexPracticeState = createSimplexPracticeState();
+  simplexPracticeState.mode = mode === 'exam' ? 'exam' : 'guided';
+  simplexPracticeState.questions = buildSimplexPracticeQuestions(currentLastProblem, currentLastResult);
+  simplexPracticeState.sessionStarted = true;
+  if (!simplexPracticeState.questions.length) {
+    showMessage('Este ejercicio no tiene iteraciones de pivote suficientes para practicar.', '');
+    return;
+  }
+  renderSimplexPractice();
+  simplexTools.practice.classList.remove('hidden');
+  setSimplexUtilityButtonState(simplexTools.practiceBtn, true);
+  simplexTools.practice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function saveSimplexProject() {
+  try {
+    if (!window.IOSolverServices?.storage?.downloadJson) throw new Error('El servicio de guardado común no está disponible.');
+    const problem = captureProblemFromEditor();
+    const resultMatches = currentLastProblem && JSON.stringify(currentLastProblem) === JSON.stringify(problem);
+    const data = { app:'IO Solver', module:'Simplex', type:'simplex', version:'7.0.0', projectName:currentProjectName(), problem, result: resultMatches ? window.IOSolverServices.storage.clone(currentLastResult) : null, savedAt:new Date().toISOString() };
+    window.IOSolverServices.storage.downloadJson(data, currentProjectName(), 'ejercicio-simplex');
+    showMessage('Ejercicio guardado como archivo JSON.','ok');
+  } catch (error) { showMessage(error.message || 'No se pudo guardar el ejercicio.','error'); }
+}
+async function loadSimplexProject(file) {
+  if (!file) return;
+  try {
+    if (!window.IOSolverServices?.storage?.readJsonFile) throw new Error('El servicio de lectura común no está disponible.');
+    const data = await window.IOSolverServices.storage.readJsonFile(file);
+    if ((data?.module !== 'Simplex' && data?.module !== 'simplex') || !data?.problem) throw new Error('El archivo no contiene un proyecto Simplex válido.');
+    loadProblemIntoEditor(data.problem,String(data.projectName||'Ejercicio de Simplex'));
+    currentLastProblem=null; currentLastResult=null;
+    el.resultSection.classList.add('hidden');
+    if(simplexTools.practice) { simplexTools.practice.classList.add('hidden'); simplexTools.practice.innerHTML=''; }
+    if(simplexTools.verifier) simplexTools.verifier.classList.add('hidden');
+    if(simplexTools.audit) { simplexTools.audit.classList.add('hidden'); simplexTools.audit.innerHTML=''; }
+    setSimplexUtilityButtonState(simplexTools.practiceBtn,false); setSimplexUtilityButtonState(simplexTools.verifyBtn,false); setSimplexUtilityButtonState(simplexTools.auditBtn,false);
+    simplexPracticeState=createSimplexPracticeState();
+    if(data.result){ renderResults(data.problem,data.result); }
+    showMessage('Ejercicio cargado correctamente.','ok');
+  } catch(error){ showMessage(error.message||'No se pudo abrir el archivo.','error'); }
+  finally { if (simplexTools.fileInput) simplexTools.fileInput.value=''; }
+}
+function resetSimplexProject() {
+  state.variables=2; state.constraints=3; state.objectiveType='max'; state.nonnegative=true;
+  el.variableCount.value='2'; el.constraintCount.value='3'; el.objectiveType.value='max'; el.nonnegative.checked=true;
+  renderEditor(); if(simplexTools.projectName) simplexTools.projectName.value='Ejercicio de Simplex'; currentLastProblem=null; currentLastResult=null; if(simplexTools.practice) { simplexTools.practice.classList.add('hidden'); simplexTools.practice.innerHTML=''; } if(simplexTools.verifier) simplexTools.verifier.classList.add('hidden'); if(simplexTools.audit) { simplexTools.audit.classList.add('hidden'); simplexTools.audit.innerHTML=''; } simplexPracticeState=createSimplexPracticeState(); setSimplexUtilityButtonState(simplexTools.practiceBtn,false); setSimplexUtilityButtonState(simplexTools.verifyBtn,false); setSimplexUtilityButtonState(simplexTools.auditBtn,false); el.resultSection.classList.add('hidden'); showMessage('Nuevo ejercicio listo.','ok'); window.scrollTo({top:0,behavior:'smooth'});
+}
+function copySimplexProcedure() {
+  if (!currentLastProblem || !currentLastResult) { showMessage('Resuelve primero un ejercicio para copiar su procedimiento.','error'); return; }
+  const text = `${currentProjectName()}\n\n${el.resultStatus.textContent}\n${el.resultSummary.textContent}\n\nMODELO\n${el.processOutput.innerText}`;
+  navigator.clipboard?.writeText(text).then(()=>showMessage('Procedimiento copiado al portapapeles.','ok')).catch(()=>showMessage('No se pudo copiar automáticamente.','error'));
+}
+
+simplexTools.newBtn?.addEventListener('click', resetSimplexProject);
+simplexTools.saveBtn?.addEventListener('click', saveSimplexProject);
+simplexTools.loadBtn?.addEventListener('click', ()=>simplexTools.fileInput?.click());
+simplexTools.fileInput?.addEventListener('change',e=>{loadSimplexProject(e.target.files?.[0]); e.target.value='';});
+simplexTools.historyBtn?.addEventListener('click',()=>{renderSimplexHistory(); const opening = simplexTools.historyPanel?.classList.contains('hidden'); simplexTools.historyPanel?.classList.toggle('hidden'); setSimplexUtilityButtonState(simplexTools.historyBtn, !!opening); });
+simplexTools.addDeliveryBtn?.addEventListener('click',()=>addToSimplexDelivery(currentLastProblem,currentLastResult,currentProjectName()));
+simplexTools.practiceBtn?.addEventListener('click',()=>{ if(!currentLastProblem||!currentLastResult){showMessage('Resuelve primero un ejercicio.','error');return;} const opening=simplexTools.practice.classList.contains('hidden'); if(opening){startSimplexPractice(simplexPracticeState.mode);} else {simplexTools.practice.classList.add('hidden'); setSimplexUtilityButtonState(simplexTools.practiceBtn,false);} });
+simplexTools.verifyBtn?.addEventListener('click',()=>{ if(!currentLastProblem){showMessage('Resuelve primero un ejercicio.','error');return;} const opening=simplexTools.verifier.classList.contains('hidden'); renderSimplexVerifier(); simplexTools.verifier.classList.toggle('hidden'); setSimplexUtilityButtonState(simplexTools.verifyBtn, !!opening); });
+simplexTools.auditBtn?.addEventListener('click',()=>{ if(!currentLastProblem||!currentLastResult){showMessage('Resuelve primero un ejercicio.','error');return;} const opening=simplexTools.audit.classList.contains('hidden'); renderSimplexAudit(); simplexTools.audit.classList.toggle('hidden'); setSimplexUtilityButtonState(simplexTools.auditBtn, !!opening); });
+simplexTools.copyProcedureBtn?.addEventListener('click',copySimplexProcedure);
+simplexTools.exportReportBtn?.addEventListener('click',()=>printSimplexReport([{problem:currentLastProblem,result:currentLastResult,name:currentProjectName()}]));
+simplexTools.deliveryExportBtn?.addEventListener('click',()=>openSimplexDeliveryPrint(getSimplexDelivery()));
+simplexTools.deliveryClearBtn?.addEventListener('click',()=>{safeLocalSet(SIMPLEX_DELIVERY_KEY,[]);renderSimplexDelivery();showMessage('La lista de entrega se vació.','ok');});
+
+renderSimplexHistory();
+renderSimplexDelivery();

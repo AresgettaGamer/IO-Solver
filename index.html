@@ -36,7 +36,7 @@
       <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
     </button>
   </section>
-  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 6.0</footer>
+  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 7.0.0</footer>
 </main>
 
 <main id="simplex-module" class="app-shell hidden">
@@ -78,6 +78,22 @@
           <p>Elige el objetivo, el dominio de las variables y el tipo de cada restricción.</p>
         </div>
       </div>
+      <div class="simplex-project-toolbar">
+        <div class="project-name-wrap">
+          <label for="simplex-project-name">Ejercicio / proyecto</label>
+          <input id="simplex-project-name" class="project-name-input" type="text" maxlength="100" value="Ejercicio de Simplex" placeholder="Nombre del ejercicio">
+        </div>
+        <div class="project-file-actions" aria-label="Gestión del ejercicio">
+          <button class="icon-btn glass-action" id="simplex-new-btn" type="button" aria-label="Nuevo ejercicio" title="Nuevo ejercicio"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="icon-btn glass-action" id="simplex-save-btn" type="button" aria-label="Guardar ejercicio" title="Guardar ejercicio"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v6h8V4M8 20v-6h8v6z"/></svg></button>
+          <button class="icon-btn glass-action" id="simplex-load-btn" type="button" aria-label="Abrir ejercicio" title="Abrir ejercicio"><svg viewBox="0 0 24 24"><path d="M4 6h6l2 2h8v10H4zM4 10h16"/></svg></button>
+          <input id="simplex-file-input" type="file" accept="application/json,.json" hidden>
+          <button class="icon-btn glass-action" id="simplex-history-btn" type="button" aria-label="Historial" title="Historial"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.7M4 4v4.7h4.7M12 7v5l3 2"/></svg></button>
+          <button class="icon-btn glass-action" id="simplex-add-delivery-btn" type="button" aria-label="Agregar a la entrega" title="Agregar a la entrega"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5zM14 4v5h5M8 14h8M8 17h8"/></svg></button>
+        </div>
+      </div>
+      <div id="simplex-history-panel" class="utility-panel hidden"></div>
+      <div id="simplex-delivery-panel" class="utility-panel hidden"></div>
 
       <form id="problem-form" novalidate>
         <div class="control-grid">
@@ -181,16 +197,37 @@ Maximizar Z = 300 X1 + 150 X2
             <h2>3. Proceso de resolución</h2>
             <p>Se conserva cada tableau y ahora también se puede seguir visualmente la secuencia: elección → pivote → normalización → eliminación → nueva tabla.</p>
           </div>
+          <div class="result-action-group">
+            <button class="icon-btn glass-action result-action" id="simplex-practice-btn" type="button" aria-label="Modo práctica" title="Modo práctica" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M6 4.5h12A1.5 1.5 0 0 1 19.5 6v14A1.5 1.5 0 0 1 18 21.5H6A1.5 1.5 0 0 1 4.5 20V6A1.5 1.5 0 0 1 6 4.5Z"/><path d="M8 8h8M8 12h6M8 16h8M15.5 12.5l1 1 2-2"/></svg></button>
+            <button class="icon-btn glass-action result-action" id="simplex-verify-btn" type="button" aria-label="Verificar solución" title="Verificar solución" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
+            <button class="icon-btn glass-action result-action" id="simplex-audit-btn" type="button" aria-label="Auditar procedimiento" title="Auditar procedimiento" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M10.5 4h3M9 5.5h6M8 4.5H6.5A1.5 1.5 0 0 0 5 6v13.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H16M8 10h9M8 14h6M8 18h3"/></svg></button>
+            <button class="icon-btn glass-action result-action" id="simplex-copy-procedure-btn" type="button" aria-label="Copiar procedimiento" title="Copiar procedimiento"><svg viewBox="0 0 24 24"><path d="M8 8h11v12H8zM5 16H4V4h12v1"/></svg></button>
+            <button class="icon-btn glass-action result-action" id="simplex-export-report-btn" type="button" aria-label="Imprimir o guardar PDF" title="Imprimir / Guardar PDF"><svg viewBox="0 0 24 24"><path d="M6 9V4h12v6.1M6 18H4V10h16v8h-2M7 14h10v6H7z"/></svg></button>
+          </div>
         </div>
         <label class="learn-toggle" for="learning-mode">
           <input id="learning-mode" type="checkbox" checked><span class="switch-visual" aria-hidden="true"></span>
           <span><strong>Modo aprendizaje</strong><small>Mostrar las operaciones de fila y el cálculo que lleva de una tabla a la siguiente.</small></span>
         </label>
         <div id="process-output"></div>
+        <div id="simplex-practice" class="utility-panel hidden"></div>
+        <div id="simplex-verifier" class="utility-panel hidden"></div>
+        <div id="simplex-audit" class="utility-panel hidden"></div>
       </div>
     </section>
+    <section id="simplex-delivery-section" class="panel hidden">
+      <div class="section-title-row">
+        <div><p class="eyebrow">Modo tarea</p><h2>Preparar entrega</h2><p>Reúne los ejercicios resueltos y genera un único reporte para entregar. Los elementos se guardan localmente en este navegador.</p></div>
+        <div class="result-action-group">
+          <button class="icon-btn glass-action" id="simplex-delivery-export-btn" type="button" aria-label="Generar entrega en PDF" title="Generar entrega en PDF"><svg viewBox="0 0 24 24"><path d="M6 9V4h12v6.1M6 18H4V10h16v8h-2M7 14h10v6H7z"/></svg></button>
+          <button class="icon-btn glass-action" id="simplex-delivery-clear-btn" type="button" aria-label="Vaciar entrega" title="Vaciar entrega"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 10v7M14 10v7M8 7l1-3h6l1 3M7 7l1 14h8l1-14"/></svg></button>
+        </div>
+      </div>
+      <div id="simplex-delivery-list" class="delivery-list"></div>
+    </section>
+    <section id="simplex-print-report" class="simplex-print-report hidden"></section>
     <footer class="app-footer">
-      <span>IO Solver · módulo Simplex</span>
+      <span>IO Solver · módulo Simplex · v7.0.0</span>
       <span>Las interpretaciones automáticas siempre deben revisarse.</span>
     </footer>
   </main>
@@ -272,7 +309,7 @@ Maximizar Z = 300 X1 + 150 X2
       <div id="pert-solution-cards" class="solution-cards"></div>
     </div>
     <section class="panel">
-      <div class="section-title-row"><div><h2>2. Red del proyecto</h2><p>Las actividades críticas aparecen resaltadas y determinan la duración calculada del proyecto.</p></div><button class="icon-btn glass-action result-action" id="pert-export-report-btn" type="button" aria-label="Imprimir o guardar PDF" title="Imprimir / Guardar PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V4h12v6.0M6 18H4V10h16v8h-2M7 14h10v6H7z"/></svg></button></div>
+      <div class="section-title-row"><div><h2>2. Red del proyecto</h2><p>Las actividades críticas aparecen resaltadas y determinan la duración calculada del proyecto.</p></div><button class="icon-btn glass-action result-action" id="pert-export-report-btn" type="button" aria-label="Imprimir o guardar PDF" title="Imprimir / Guardar PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V4h12v6.1M6 18H4V10h16v8h-2M7 14h10v6H7z"/></svg></button></div>
       <div id="pert-network-output"></div>
     </section>
     <section class="panel">
@@ -298,7 +335,8 @@ Maximizar Z = 300 X1 + 150 X2
   </section>
 </main>
 
-<script src="simplex.js"></script>
+<script src="io-services.js"></script>
+  <script src="simplex.js"></script>
   <script src="pert.js"></script>
   <script src="app.js"></script>
 </body>

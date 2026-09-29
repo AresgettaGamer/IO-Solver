@@ -1,12 +1,12 @@
-# IO Solver v6.0
+# IO Solver v7.0.0
 
 Herramienta educativa de **Investigación de Operaciones** para navegador, organizada en dos módulos independientes: **Simplex** y **PERT / CPM**.
 
 El módulo **Simplex** es el componente principal del proyecto y concentra la resolución de programación lineal, el procedimiento paso a paso y las herramientas de formulación/importación. **PERT / CPM** es un módulo complementario para ampliar la demostración durante la exposición.
 
-## v6.0 — promoción de la línea Simplex
+## v6.1 — promoción de la línea Simplex
 
-La Versión 6.0 toma la línea anterior como base para cerrar los hallazgos de la ronda de estrés. Corrige la última fuga de la condición de no negatividad: `X₁, X₂ ≥ 0` se conserva como dominio y nunca se agrega como restricción estructural. Además, los modelos con RHS negativo pueden importarse con una advertencia no bloqueante para comprobar la factibilidad desde Resolver, y las funciones objetivo nulas o restricciones de coeficientes cero se tratan como casos matemáticos diagnosticables en lugar de bloquear automáticamente la ejecución.
+La Versión 6.1 toma la línea anterior como base para cerrar los hallazgos de la ronda de estrés. Corrige la última fuga de la condición de no negatividad: `X₁, X₂ ≥ 0` se conserva como dominio y nunca se agrega como restricción estructural. Además, los modelos con RHS negativo pueden importarse con una advertencia no bloqueante para comprobar la factibilidad desde Resolver, y las funciones objetivo nulas o restricciones de coeficientes cero se tratan como casos matemáticos diagnosticables en lugar de bloquear automáticamente la ejecución.
 
 Incluye, entre otras mejoras acumuladas:
 
@@ -15,13 +15,32 @@ Incluye, entre otras mejoras acumuladas:
 - Formulación e interpretación asistida de modelos.
 - Importación de texto y PDF con revisión del modelo detectado.
 - Verificación de la solución contra las restricciones originales.
-- Método gráfico para modelos de dos variables.
+- Método gráfico para modelos de dos variables, con procedimiento visible para obtener fronteras, vértices y valores de Z.
+- La sección gráfica solo aparece cuando el modelo puede representarse correctamente con la vista actual; si no aplica, no ocupa espacio ni simula una gráfica disponible.
+- Los modelos sin variables artificiales continúan mediante Simplex directo y no muestran una Fase II ficticia ni una transición W → Z que nunca ocurrió.
 - Mejoras de entrada numérica, fracciones y separadores de miles.
 - Gráficos con escala más legible y etiquetas de ejes ajustadas.
 - Diagnóstico visual de infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates en la prueba de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes numéricamente pequeños.
 - Módulo PERT / CPM ya integrado como complemento.
 
-**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v6.0**.
+**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v7.0.0**.
+
+## v7.0.0 — Inicio de la etapa de mejora de PERT / CPM
+
+La versión 7.0.0 establece la base publicada para la nueva etapa de evolución de PERT / CPM. Conserva la infraestructura consolidada durante la rama 6.x y prepara el proyecto para comenzar las mejoras funcionales del módulo en las siguientes revisiones 7.x.
+
+No se modifica todavía el algoritmo de cálculo de PERT / CPM en este incremento de versión. Las mejoras de infraestructura, guardado y reportes descritas en la rama 6.x permanecen como parte de la base estable.
+
+
+## v6.5.0 — Modo práctica y estado visual de herramientas
+
+Se añade un modo de práctica basado en las iteraciones reales almacenadas por Simplex. La sesión propone preguntas de selección de variable entrante, prueba de razón, variable saliente y elemento pivote. Incluye modo guiado con retroalimentación inmediata y modo examen con revisión al terminar. El resultado conserva aciertos, respuestas y revisión de cada pregunta.
+
+Las herramientas de resultado que abren contenido en secciones separadas ahora muestran estado visual activo mediante el mismo sistema de acento de la interfaz, para dejar claro que una herramienta como Verificar, Auditar, Historial o Modo práctica está abierta aunque su efecto no ocurra en el botón mismo.
+
+## v6.4.0 — Auditoría del procedimiento
+
+Se añade una auditoría interna del procedimiento Simplex para revisar dimensiones de tableaux, selección de variable entrante, prueba de razón, elemento pivote, reproducción numérica del pivote, normalización, eliminación, cambio de base y criterio de optimalidad cuando corresponde. La auditoría es una herramienta de consistencia y trazabilidad; no sustituye la revisión matemática del ejercicio.
 
 ## PERT / CPM — fase 1
 

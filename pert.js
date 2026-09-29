@@ -487,19 +487,46 @@ loadPertExample();
 // ─────────────────────────────────────────────────────────────────────────────
 // Gestión de proyectos y reporte imprimible
 // ─────────────────────────────────────────────────────────────────────────────
+function serializePertResult(result) {
+  if (!result || !result.nodes || !result.successors) return null;
+  return {
+    order: Array.isArray(result.order) ? result.order.slice() : [],
+    projectDuration: Number(result.projectDuration) || 0,
+    critical: Array.isArray(result.critical) ? result.critical.slice() : [],
+    nodes: [...result.nodes.entries()].map(([name, node]) => [name, { ...node, pred: Array.isArray(node.pred) ? node.pred.slice() : [] }]),
+    successors: [...result.successors.entries()].map(([name, list]) => [name, Array.isArray(list) ? list.slice() : []])
+  };
+}
+
+function deserializePertResult(data) {
+  if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.successors) || !Array.isArray(data.order)) return null;
+  const nodes = new Map(data.nodes.map(([name, node]) => [name, { ...node, pred: Array.isArray(node?.pred) ? node.pred.slice() : [] }]));
+  const successors = new Map(data.successors.map(([name, list]) => [name, Array.isArray(list) ? list.slice() : []]));
+  return {
+    nodes,
+    successors,
+    order: data.order.slice(),
+    projectDuration: Number(data.projectDuration) || 0,
+    critical: Array.isArray(data.critical) ? data.critical.slice() : []
+  };
+}
+
 function getPertProjectData() {
   syncPertStateFromDom();
   return {
-    format: 'io-solver-project',
-    version: 1,
+    app: 'IO Solver',
+    module: 'PERT',
     type: 'pert-cpm',
+    version: '7.0.0',
     projectName: String(pertEl.projectName?.value || '').trim() || 'Mi proyecto PERT / CPM',
     mode: Boolean(pertState.mode),
     learning: Boolean(pertState.learning),
     rows: pertState.rows.map(r => ({
       name: String(r.name ?? ''), pred: String(r.pred ?? ''), duration: String(r.duration ?? ''),
       o: String(r.o ?? ''), m: String(r.m ?? ''), p: String(r.p ?? '')
-    }))
+    })),
+    result: serializePertResult(pertState.lastResult),
+    savedAt: new Date().toISOString()
   };
 }
 
@@ -523,85 +550,52 @@ function resetPertProject(showMessage = true) {
 function savePertProject() {
   try {
     const data = getPertProjectData();
-    const safeName = data.projectName.replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '') || 'proyecto-pert-cpm';
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${safeName}.json`; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (!window.IOSolverServices?.storage?.downloadJson) throw new Error('El servicio de guardado común no está disponible.');
+    window.IOSolverServices.storage.downloadJson(data, data.projectName, 'proyecto-pert-cpm');
     pertMessage('Proyecto guardado como archivo JSON.', 'ok');
   } catch (error) {
-    pertMessage('No se pudo guardar el proyecto.', 'error');
+    pertMessage(error?.message || 'No se pudo guardar el proyecto.', 'error');
   }
 }
 
-function loadPertProject(file) {
+async function loadPertProject(file) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(String(reader.result || ''));
-      if (data?.format !== 'io-solver-project' || data?.type !== 'pert-cpm' || !Array.isArray(data.rows)) {
-        throw new Error('El archivo no corresponde a un proyecto PERT / CPM de IO Solver.');
-      }
-      if (data.rows.length < 2 || data.rows.length > 500) throw new Error('El proyecto debe contener entre 2 y 500 actividades.');
-      pertState.rows = data.rows.map((r, i) => ({
-        name: String(r?.name ?? '').trim(), pred: String(r?.pred ?? ''), duration: String(r?.duration ?? ''),
-        o: String(r?.o ?? ''), m: String(r?.m ?? ''), p: String(r?.p ?? '')
-      }));
-      pertState.mode = Boolean(data.mode);
-      pertState.learning = Boolean(data.learning);
-      pertState.lastResult = null;
-      if (pertEl.projectName) pertEl.projectName.value = String(data.projectName || 'Mi proyecto PERT / CPM').slice(0, 80);
-      pertEl.mode.checked = pertState.mode;
-      pertEl.learningMode.checked = pertState.learning;
-      syncPertColumns();
-      renderPertRows();
-      pertEl.result.classList.add('hidden');
-      pertMessage(`Proyecto “${pertEl.projectName.value}” cargado correctamente.`, 'ok');
-    } catch (error) {
-      pertMessage(error instanceof Error ? error.message : 'No se pudo abrir el proyecto.', 'error');
-    } finally {
-      pertEl.fileInput.value = '';
+  try {
+    if (!window.IOSolverServices?.storage?.readJsonFile) throw new Error('El servicio de lectura común no está disponible.');
+    const data = await window.IOSolverServices.storage.readJsonFile(file);
+    const isCurrent = data?.app === 'IO Solver' && (data?.module === 'PERT' || data?.module === 'PERT / CPM') && data?.type === 'pert-cpm';
+    const isLegacy = data?.format === 'io-solver-project' && data?.type === 'pert-cpm';
+    if ((!isCurrent && !isLegacy) || !Array.isArray(data.rows)) {
+      throw new Error('El archivo no corresponde a un proyecto PERT / CPM de IO Solver.');
     }
-  };
-  reader.onerror = () => { pertMessage('No se pudo leer el archivo.', 'error'); pertEl.fileInput.value = ''; };
-  reader.readAsText(file);
+    if (data.rows.length < 2 || data.rows.length > 500) throw new Error('El proyecto debe contener entre 2 y 500 actividades.');
+    pertState.rows = data.rows.map((r) => ({
+      name: String(r?.name ?? '').trim(), pred: String(r?.pred ?? ''), duration: String(r?.duration ?? ''),
+      o: String(r?.o ?? ''), m: String(r?.m ?? ''), p: String(r?.p ?? '')
+    }));
+    pertState.mode = Boolean(data.mode);
+    pertState.learning = Boolean(data.learning);
+    pertState.lastResult = deserializePertResult(data.result);
+    if (pertEl.projectName) pertEl.projectName.value = String(data.projectName || 'Mi proyecto PERT / CPM').slice(0, 80);
+    pertEl.mode.checked = pertState.mode;
+    pertEl.learningMode.checked = pertState.learning;
+    syncPertColumns();
+    renderPertRows();
+    pertEl.result.classList.add('hidden');
+    if (pertState.lastResult) renderPertResult(pertState.lastResult);
+    pertMessage(`Proyecto “${pertEl.projectName.value}” cargado correctamente.`, 'ok');
+  } catch (error) {
+    pertState.lastResult = null;
+    pertMessage(error instanceof Error ? error.message : 'No se pudo abrir el proyecto.', 'error');
+  } finally {
+    if (pertEl.fileInput) pertEl.fileInput.value = '';
+  }
 }
 
-function exportPertReport() {
-  if (!pertState.lastResult) {
-    pertMessage('Primero calcula el proyecto para poder generar el reporte.', 'error');
-    return;
-  }
+function pertReportPrintStyles() {
+  return `
 
-  const name = pertEsc(pertEl.projectName?.value?.trim() || 'Mi proyecto PERT / CPM');
-  const result = pertState.lastResult;
-  const reportWindow = window.open('', '_blank');
-  if (!reportWindow) {
-    pertMessage('El navegador bloqueó la ventana del reporte. Permite ventanas emergentes para IO Solver.', 'error');
-    return;
-  }
-
-  const network = pertEl.network.innerHTML;
-  const gantt = pertEl.gantt.innerHTML;
-  const table = pertEl.table.innerHTML;
-  const formula = pertState.mode ? pertEl.formula.innerHTML : '';
-  const advanced = pertState.mode ? pertEl.advanced.innerHTML : '';
-  const learning = pertState.learning ? pertEl.learning.innerHTML : '';
-  const date = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
-  const paths = enumerateCriticalPaths(result).map(p => p.join(' → '));
-
-  // El reporte usa CSS propio. No heredamos el CSS de la aplicación porque sus
-  // reglas de pantalla (grid, tamaños, colores y contenedores) pueden provocar
-  // que el contenido se comprima al imprimir/guardar como PDF.
-  reportWindow.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${name} · IO Solver</title><style>
-    @page { size: A4 portrait; margin: 12mm 12mm 14mm; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #fff; color: #172033; }
-    body { font-family: Inter, Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.45; }
-    main { max-width: 100%; margin: 0 auto; }
-    .report-page { break-before: page; page-break-before: always; break-after: page; page-break-after: always; min-height: 0; }
+.report-page { break-before: page; page-break-before: always; break-after: page; page-break-after: always; min-height: 0; }
     .report-page:first-of-type { break-before: auto; page-break-before: auto; }
     .report-page:last-of-type { break-after: auto; page-break-after: auto; }
     .cover { padding: 4mm 0 6mm; border-bottom: 2px solid #d8e0ea; margin-bottom: 7mm; }
@@ -617,8 +611,21 @@ function exportPertReport() {
     .card strong { display: block; font-size: 15px; overflow-wrap: anywhere; }
     .card.critical { border-color: #1989e8; }
     .section-box { border: 1px solid #d5deea; border-radius: 8px; padding: 3mm; break-inside: avoid; page-break-inside: avoid; }
-    .pert-network-wrap, .pert-gantt-wrap { overflow: hidden; border: 0; border-radius: 0; padding: 0; }
-    .pert-network-wrap svg { display: block; width: 100%; height: auto; max-height: 150mm; background: #fff; }
+    .pert-network-wrap, .pert-gantt-wrap {
+      overflow: visible !important;
+      border: 0; border-radius: 0; padding: 0;
+      width: 100% !important; max-width: 100% !important;
+      min-width: 0 !important;
+      background: #fff !important; color: #172033 !important;
+    }
+    .pert-network-wrap svg, .pert-gantt-wrap svg {
+      display: block;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      height: auto !important;
+      background: #fff !important;
+    }
     /* The app stylesheet is intentionally not loaded in the report, so inline SVGs
        need explicit print-safe presentation styles. */
     .pert-network-wrap .pert-edge { stroke: #64748b; stroke-width: 2.25; fill: none; opacity: .78; }
@@ -642,11 +649,45 @@ function exportPertReport() {
     .pert-gantt-wrap .gantt-bar { fill: #7a8798; opacity: .82; }
     .pert-gantt-wrap .gantt-bar.critical { fill: #1989e8; opacity: 1; }
     .pert-gantt-wrap .gantt-bar-label { fill: #fff; font-size: 10px; font-weight: 900; }
-    .graph-legend { display: flex; gap: 4mm; flex-wrap: wrap; font-size: 9px; margin: 2mm 1mm 0; color: #536174; }
-    .table-wrap { overflow: visible; }
-    .pert-result-table { width: 100%; border-collapse: collapse; font-size: 9px; }
-    .pert-result-table th, .pert-result-table td { border: 1px solid #d5deea; padding: 2mm 1.5mm; text-align: left; }
+    .graph-legend {
+      display: flex; gap: 4mm; flex-wrap: wrap;
+      width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+      font-size: 9px; margin: 2mm 0 0; padding: 2mm 0 0;
+      color: #536174 !important; background: #fff !important;
+    }
+    .graph-legend span { color: #536174 !important; }
+    .graph-legend .legend-line, .graph-legend .legend-dot { flex: 0 0 auto; }
+    .table-wrap {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      overflow: visible !important;
+      box-sizing: border-box !important;
+    }
+    .pert-result-table {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      border-collapse: collapse;
+      table-layout: fixed !important;
+      font-size: 8.5px;
+    }
+    .pert-result-table th, .pert-result-table td {
+      border: 1px solid #d5deea;
+      padding: 1.55mm 1.15mm;
+      text-align: left;
+      vertical-align: middle;
+      white-space: normal !important;
+      overflow-wrap: anywhere !important;
+      word-break: normal;
+      min-width: 0 !important;
+    }
     .pert-result-table th { background: #eef3f8; }
+    .pert-result-table th:nth-child(1), .pert-result-table td:nth-child(1) { width: 16%; }
+    .pert-result-table th:nth-child(2), .pert-result-table td:nth-child(2) { width: 22%; }
+    .pert-result-table th:nth-child(3), .pert-result-table td:nth-child(3) { width: 11%; }
+    .pert-result-table th:nth-child(n+4), .pert-result-table td:nth-child(n+4) { width: 10.2%; }
+    .pert-result-table .critical-chip { margin-left: 1mm; white-space: nowrap !important; }
     .pert-result-table tr { break-inside: avoid; page-break-inside: avoid; }
     .critical-chip { margin-left: 1mm; font-size: 8px; border: 1px solid #1989e8; border-radius: 20px; padding: 1px 4px; }
     .learning-block, .pert-advanced-path, .pert-probability-box { border: 1px solid #d5deea; border-radius: 8px; padding: 3mm; margin: 2.5mm 0; break-inside: avoid; page-break-inside: avoid; }
@@ -662,18 +703,65 @@ function exportPertReport() {
     .probability-card strong { font-size: 16px; display: block; }
     .report-footer { margin-top: 7mm; padding-top: 2mm; border-top: 1px solid #e5eaf0; color: #7a8798; font-size: 8.5px; }
     .report-note { border-left: 3px solid #1989e8; padding: 2.5mm 3mm; background: #f5f9fd; margin: 3mm 0; break-inside: avoid; }
-    @media screen {
-      body { background: #eef2f6; padding: 20px; }
-      main { max-width: 900px; background: #fff; padding: 28px; box-shadow: 0 5px 30px rgba(20,40,70,.12); }
-      .no-print { display: block; }
-    }
     @media print {
       .no-print { display: none !important; }
       .report-page { min-height: 0; }
       .section-box, .learning-block, .pert-advanced-path, .pert-probability-box, .card { overflow: visible; }
     }
-  </style></head><body><main>
-    <section class="report-page">
+  
+    .report-page { width: 100%; max-width: 100%; margin: 0; box-sizing: border-box; }
+    .report-page .cover { max-width: 100%; }
+    .report-page h1, .report-page h2, .report-page h3, .report-page p, .report-page li,
+    .report-page strong, .report-page span, .report-page small, .report-page td, .report-page th {
+      max-width: 100%; overflow-wrap: anywhere; word-break: normal;
+    }
+    .report-page .summary, .report-page .pert-formula-grid, .report-page .advanced-stat-grid {
+      width: 100%; min-width: 0; max-width: 100%;
+    }
+    .report-page .section-box, .report-page .learning-block, .report-page .pert-advanced-path,
+    .report-page .pert-probability-box, .report-page .card { max-width: 100%; overflow: visible; }
+    .report-page .table-wrap {
+      width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+      overflow: visible !important; box-sizing: border-box !important;
+    }
+    .report-page .pert-result-table {
+      width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+      table-layout: fixed !important;
+    }
+    .report-page .pert-network-wrap, .report-page .pert-gantt-wrap {
+      width: 100% !important; max-width: 100% !important;
+      min-width: 0 !important; overflow: visible !important;
+    }
+    .report-page .pert-network-wrap svg, .report-page .pert-gantt-wrap svg {
+      width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+      height: auto !important;
+    }
+    .report-page .pert-network-wrap .graph-legend, .report-page .pert-gantt-wrap .graph-legend {
+      width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+      background: #fff !important; color: #536174 !important;
+    }
+
+  `;
+}
+
+function exportPertReport() {
+  if (!pertState.lastResult) {
+    pertMessage('Primero calcula el proyecto para poder generar el reporte.', 'error');
+    return;
+  }
+  const name = pertEsc(pertEl.projectName?.value?.trim() || 'Mi proyecto PERT / CPM');
+  const result = pertState.lastResult;
+  const network = pertEl.network.innerHTML;
+  const gantt = pertEl.gantt.innerHTML;
+  const table = pertEl.table.innerHTML;
+  const formula = pertState.mode ? pertEl.formula.innerHTML : '';
+  const advanced = pertState.mode ? pertEl.advanced.innerHTML : '';
+  const learning = pertState.learning ? pertEl.learning.innerHTML : '';
+  const date = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+  const paths = enumerateCriticalPaths(result).map(p => p.join(' → '));
+
+  const content = `
+    <section class="io-report-page report-page">
       <header class="cover">
         <p class="eyebrow">IO Solver · Investigación de Operaciones</p>
         <h1>${name}</h1>
@@ -693,7 +781,7 @@ function exportPertReport() {
       <div class="report-footer">IO Solver · Reporte generado desde el módulo PERT / CPM.</div>
     </section>
 
-    <section class="report-page">
+    <section class="io-report-page report-page">
       <h2>Cronograma de Gantt</h2>
       <p class="muted">Vista temporal de las actividades según sus inicios y finales tempranos.</p>
       <div class="section-box">${gantt}</div>
@@ -704,11 +792,23 @@ function exportPertReport() {
       <div class="report-footer">Las actividades críticas tienen holgura cero y determinan la duración calculada del proyecto.</div>
     </section>
 
-    ${learning ? `<section class="report-page"><h2>Procedimiento paso a paso</h2><p class="muted">Recorrido hacia adelante, recorrido hacia atrás y cálculo de holguras.</p>${learning}</section>` : ''}
+    ${learning ? `<section class="io-report-page report-page"><h2>Procedimiento paso a paso</h2><p class="muted">Recorrido hacia adelante, recorrido hacia atrás y cálculo de holguras.</p>${learning}</section>` : ''}
 
-    ${formula || advanced ? `<section class="report-page">${formula ? `<h2>Cálculo PERT</h2>${formula}` : ''}${advanced ? `<h2 style="margin-top:7mm">Análisis PERT avanzado</h2>${advanced}` : ''}<div class="report-footer">El análisis estadístico PERT utiliza las estimaciones O, M y P configuradas en el proyecto.</div></section>` : ''}
-  </main><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),450));<\/script></body></html>`);
-  reportWindow.document.close();
+    ${formula || advanced ? `<section class="io-report-page report-page">${formula ? `<h2>Cálculo PERT</h2>${formula}` : ''}${advanced ? `<h2 style="margin-top:7mm">Análisis PERT avanzado</h2>${advanced}` : ''}<div class="report-footer">El análisis estadístico PERT utiliza las estimaciones O, M y P configuradas en el proyecto.</div></section>` : ''}
+  `;
+
+  try {
+    if (!window.IOSolverServices?.print?.open) throw new Error('El servicio de reportes común no está disponible.');
+    window.IOSolverServices.print.open({
+      title: `${name} · IO Solver`,
+      content,
+      styles: pertReportPrintStyles(),
+      bodyClass: 'pert-print-document'
+    });
+    pertMessage('Preparando el reporte PERT / CPM…', 'ok');
+  } catch (error) {
+    pertMessage(error?.message || 'No se pudo preparar el reporte.', 'error');
+  }
 }
 
 pertEl.newBtn?.addEventListener('click', () => resetPertProject());

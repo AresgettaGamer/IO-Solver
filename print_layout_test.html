@@ -1,0 +1,220 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="/mnt/data/io_solver_v660_source/style.css"><style>
+          @page { size: Letter portrait; margin: 0; }
+          *, *::before, *::after { box-sizing: border-box; }
+          :root {
+            color-scheme: light !important;
+            --bg: #ffffff;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --input-bg: #ffffff;
+            --code-bg: #f8fafc;
+            --text: #172033;
+            --muted: #68758a;
+            --border: #d9e1ec;
+            --accent: #1989e8;
+            --accent-soft: #eaf5ff;
+            --accent-strong: #166bb4;
+            --glass-control: #ffffff;
+            --glass-line: #d9e1ec;
+            --glass-shine: rgba(255,255,255,.78);
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            min-height: 100%;
+            background: #fff !important;
+          }
+          body {
+            color: #172033 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif !important;
+            font-size: 10.5pt;
+            line-height: 1.45;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .io-print-main {
+            display: block !important;
+            width: 8.5in !important;
+            max-width: 100% !important;
+            margin: 0 auto !important;
+            padding: 0.58in 0.62in 0.62in !important;
+            background: #fff !important;
+            color: #172033 !important;
+            overflow: visible !important;
+          }
+          .io-report-page {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+          }
+          .io-report-page { break-before: page; page-break-before: always; }
+          .io-report-page:first-child { break-before: auto; page-break-before: auto; }
+          h1, h2, h3, h4, p, li, strong, span, small, td, th, summary {
+            max-width: 100% !important;
+            overflow-wrap: anywhere !important;
+            word-break: normal;
+          }
+          h1, h2, h3, h4 {
+            break-after: avoid-page;
+            page-break-after: avoid;
+          }
+          p, li { orphans: 3; widows: 3; }
+          table {
+            max-width: 100% !important;
+          }
+          img, svg, canvas {
+            max-width: 100% !important;
+          }
+          .io-no-break,
+          .io-print-card,
+          .io-callout,
+          .io-section-box {
+            break-inside: avoid-page;
+            page-break-inside: avoid;
+          }
+          .io-print-table-wrap {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: visible !important;
+          }
+          @media screen {
+            body { background: #eef2f6; padding: 20px !important; }
+            .io-print-main {
+              max-width: 8.5in !important;
+              box-shadow: 0 5px 30px rgba(20,40,70,.12);
+            }
+          }
+          @media print {
+            .no-print { display: none !important; }
+            .io-print-main { overflow: visible !important; }
+          }
+        
+
+
+.report-page { break-before: page; page-break-before: always; break-after: page; page-break-after: always; min-height: 0; }
+    .report-page:first-of-type { break-before: auto; page-break-before: auto; }
+    .report-page:last-of-type { break-after: auto; page-break-after: auto; }
+    .cover { padding: 4mm 0 6mm; border-bottom: 2px solid #d8e0ea; margin-bottom: 7mm; }
+    .eyebrow { margin: 0 0 2mm; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; color: #1879d1; }
+    h1 { margin: 0 0 1mm; font-size: 25px; line-height: 1.15; }
+    h2 { margin: 0 0 3mm; font-size: 17px; line-height: 1.2; }
+    h3 { margin: 4mm 0 2mm; font-size: 13px; }
+    p { margin: 0 0 3mm; }
+    .muted { color: #59677a; }
+    .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm; margin-bottom: 6mm; }
+    .card { min-width: 0; border: 1px solid #d5deea; border-radius: 8px; padding: 3.5mm; break-inside: avoid; page-break-inside: avoid; }
+    .card span { display: block; color: #68768a; font-size: 9px; margin-bottom: 1mm; }
+    .card strong { display: block; font-size: 15px; overflow-wrap: anywhere; }
+    .card.critical { border-color: #1989e8; }
+    .section-box { border: 1px solid #d5deea; border-radius: 8px; padding: 3mm; break-inside: avoid; page-break-inside: avoid; }
+    .pert-network-wrap, .pert-gantt-wrap {
+      overflow: visible !important;
+      border: 0; border-radius: 0; padding: 0;
+      width: 100% !important; max-width: 100% !important;
+      min-width: 0 !important;
+      background: #fff !important; color: #172033 !important;
+    }
+    .pert-network-wrap svg, .pert-gantt-wrap svg {
+      display: block;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      height: auto !important;
+      background: #fff !important;
+    }
+    /* The app stylesheet is intentionally not loaded in the report, so inline SVGs
+       need explicit print-safe presentation styles. */
+    .pert-network-wrap .pert-edge { stroke: #64748b; stroke-width: 2.25; fill: none; opacity: .78; }
+    .pert-network-wrap .pert-edge.critical { stroke: #1989e8; stroke-width: 4; opacity: 1; }
+    .pert-network-wrap .pert-node rect { fill: #f5f7fa; stroke: #cbd5e1; stroke-width: 2; }
+    .pert-network-wrap .pert-node.critical rect { fill: #eaf5ff; stroke: #1989e8; stroke-width: 3.5; }
+    .pert-network-wrap .pert-node-name { fill: #172033; font-size: 18px; font-weight: 900; }
+    .pert-network-wrap .pert-node-time { fill: #68758a; font-size: 12px; font-weight: 800; }
+    .pert-network-wrap .pert-node-divider { stroke: #d9e1ec; stroke-width: 1; }
+    .pert-network-wrap .pert-node-meta { fill: #68758a; font-size: 11px; font-weight: 750; }
+    .pert-network-wrap .pert-node-slack { fill: #172033; font-size: 11px; font-weight: 900; }
+    .pert-network-wrap .pert-node.critical .pert-node-slack { fill: #166bb4; }
+    .pert-network-wrap marker path { fill: #64748b; }
+    .pert-network-wrap marker#pert-arrow-critical path { fill: #1989e8; }
+    .pert-gantt-wrap svg { display: block; width: 100%; height: auto; max-height: 90mm; background: #fff; }
+    .pert-gantt-wrap .gantt-grid-line { stroke: #d9e1ec; stroke-width: 1; opacity: .85; }
+    .pert-gantt-wrap .gantt-axis-label, .pert-gantt-wrap .gantt-axis-title { fill: #68758a; font-size: 11px; font-weight: 800; }
+    .pert-gantt-wrap .gantt-axis-title { font-size: 12px; }
+    .pert-gantt-wrap .gantt-name { fill: #172033; font-size: 12px; font-weight: 900; }
+    .pert-gantt-wrap .gantt-row-bg { fill: #f5f7fa; opacity: .9; }
+    .pert-gantt-wrap .gantt-bar { fill: #7a8798; opacity: .82; }
+    .pert-gantt-wrap .gantt-bar.critical { fill: #1989e8; opacity: 1; }
+    .pert-gantt-wrap .gantt-bar-label { fill: #fff; font-size: 10px; font-weight: 900; }
+    .graph-legend {
+      display: flex; gap: 4mm; flex-wrap: wrap;
+      width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+      font-size: 9px; margin: 2mm 0 0; padding: 2mm 0 0;
+      color: #536174 !important; background: #fff !important;
+    }
+    .graph-legend span { color: #536174 !important; }
+    .graph-legend .legend-line, .graph-legend .legend-dot { flex: 0 0 auto; }
+    .table-wrap { width:100% !important; max-width:100% !important; min-width:0 !important; overflow:visible !important; box-sizing:border-box !important; }
+    .pert-result-table { width:100% !important; max-width:100% !important; min-width:0 !important; border-collapse:collapse; table-layout:fixed !important; font-size:8.5px; }
+    .pert-result-table th, .pert-result-table td { border:1px solid #d5deea; padding:1.55mm 1.15mm; text-align:left; vertical-align:middle; white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal; min-width:0 !important; }
+    .pert-result-table th { background: #eef3f8; }
+    .pert-result-table tr { break-inside: avoid; page-break-inside: avoid; }
+    .critical-chip { margin-left: 1mm; font-size: 8px; border: 1px solid #1989e8; border-radius: 20px; padding: 1px 4px; }
+    .learning-block, .pert-advanced-path, .pert-probability-box { border: 1px solid #d5deea; border-radius: 8px; padding: 3mm; margin: 2.5mm 0; break-inside: avoid; page-break-inside: avoid; }
+    .learning-step { padding: 2.5mm 0; border-bottom: 1px solid #e5eaf0; break-inside: avoid; page-break-inside: avoid; }
+    .learning-step:last-child { border-bottom: 0; }
+    .pert-formula-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.5mm; }
+    .pert-formula-card { border: 1px solid #d5deea; border-radius: 7px; padding: 2.5mm; break-inside: avoid; page-break-inside: avoid; }
+    .advanced-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5mm; margin-top: 2.5mm; }
+    .advanced-stat-grid div { border: 1px solid #d5deea; border-radius: 7px; padding: 2.5mm; break-inside: avoid; page-break-inside: avoid; }
+    .advanced-stat-grid span { display: block; color: #68768a; font-size: 9px; }
+    .probability-result { margin-top: 2.5mm; }
+    .probability-card { border: 1px solid #d5deea; border-radius: 7px; padding: 2.5mm; margin: 1.5mm 0; break-inside: avoid; page-break-inside: avoid; }
+    .probability-card strong { font-size: 16px; display: block; }
+    .report-footer { margin-top: 7mm; padding-top: 2mm; border-top: 1px solid #e5eaf0; color: #7a8798; font-size: 8.5px; }
+    .report-note { border-left: 3px solid #1989e8; padding: 2.5mm 3mm; background: #f5f9fd; margin: 3mm 0; break-inside: avoid; }
+    @media print {
+      .no-print { display: none !important; }
+      .report-page { min-height: 0; }
+      .section-box, .learning-block, .pert-advanced-path, .pert-probability-box, .card { overflow: visible; }
+    }
+  
+    .report-page { width: 100%; max-width: 100%; margin: 0; box-sizing: border-box; }
+    .report-page .cover { max-width: 100%; }
+    .report-page h1, .report-page h2, .report-page h3, .report-page p, .report-page li,
+    .report-page strong, .report-page span, .report-page small, .report-page td, .report-page th {
+      max-width: 100%; overflow-wrap: anywhere; word-break: normal;
+    }
+    .report-page .summary, .report-page .pert-formula-grid, .report-page .advanced-stat-grid {
+      width: 100%; min-width: 0; max-width: 100%;
+    }
+    .report-page .section-box, .report-page .learning-block, .report-page .pert-advanced-path,
+    .report-page .pert-probability-box, .report-page .card { max-width: 100%; overflow: visible; }
+    .report-page .table-wrap { width:100% !important; max-width:100% !important; min-width:0 !important; overflow:visible !important; box-sizing:border-box !important; }
+    .report-page .pert-result-table { width:100% !important; max-width:100% !important; min-width:0 !important; table-layout:fixed !important; }
+    .report-page .pert-network-wrap, .report-page .pert-gantt-wrap {
+      width: 100% !important; max-width: 100% !important;
+      min-width: 0 !important; overflow: visible !important;
+    }
+    .report-page .pert-network-wrap svg, .report-page .pert-gantt-wrap svg {
+      width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+      height: auto !important;
+    }
+    .report-page .pert-network-wrap .graph-legend, .report-page .pert-gantt-wrap .graph-legend {
+      width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+      background: #fff !important; color: #536174 !important;
+    }
+
+  </style></head><body><main class="io-print-main"><section class="io-report-page report-page"><header class="cover"><p class="eyebrow">IO Solver · Investigación de Operaciones</p><h1>Mi proyecto PERT / CPM</h1><p class="muted">Reporte PERT / CPM · 28 de septiembre de 2026</p></header><h2>Resumen del proyecto</h2><div class="summary"><div class="card"><span>Duración total</span><strong>14.83 días</strong></div><div class="card"><span>Actividades</span><strong>6</strong></div><div class="card critical"><span>Actividades críticas</span><strong>4</strong></div><div class="card"><span>Ruta(s) crítica(s)</span><strong>A → B → D → F</strong></div></div><h2>Red del proyecto</h2><div class="section-box"><div class="pert-network-wrap"><svg viewBox="0 0 1040 300" role="img" aria-label="Red de actividades del proyecto"><defs><marker id="pert-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L12,6 L0,12 z" fill="#64748b"/></marker><marker id="pert-arrow-critical" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L12,6 L0,12 z" fill="#1989e8"/></marker></defs>
+<path d="M 206 150 C 250 150, 300 85, 356 85" class="pert-edge critical" marker-end="url(#pert-arrow-critical)"/>
+<path d="M 616 85 C 660 85, 710 85, 766 85" class="pert-edge critical" marker-end="url(#pert-arrow-critical)"/>
+<path d="M 206 150 C 250 150, 300 215, 356 215" class="pert-edge" marker-end="url(#pert-arrow)"/>
+<path d="M 616 215 C 660 215, 710 215, 766 215" class="pert-edge" marker-end="url(#pert-arrow)"/>
+<path d="M 1026 85 C 1030 85, 1030 150, 1030 150" class="pert-edge critical"/>
+<g class="pert-node critical"><rect x="42" y="110" width="164" height="80" rx="18"/><text x="124" y="137" text-anchor="middle" class="pert-node-name">A</text><text x="124" y="159" text-anchor="middle" class="pert-node-time">Duración: 3.17 d</text><line x1="56" y1="171" x2="192" y2="171" class="pert-node-divider"/><text x="58" y="194" class="pert-node-meta">ES 0</text><text x="140" y="194" class="pert-node-meta">EF 3.17</text></g>
+<g class="pert-node critical"><rect x="356" y="45" width="164" height="80" rx="18"/><text x="438" y="72" text-anchor="middle" class="pert-node-name">B</text><text x="438" y="94" text-anchor="middle" class="pert-node-time">Duración: 4.33 d</text><line x1="370" y1="106" x2="506" y2="106" class="pert-node-divider"/><text x="372" y="129" class="pert-node-meta">ES 3.17</text><text x="454" y="129" class="pert-node-meta">EF 7.5</text></g>
+<g class="pert-node"><rect x="356" y="175" width="164" height="80" rx="18"/><text x="438" y="202" text-anchor="middle" class="pert-node-name">C</text><text x="438" y="224" text-anchor="middle" class="pert-node-time">Duración: 2.17 d</text></g>
+<g class="pert-node critical"><rect x="766" y="45" width="164" height="80" rx="18"/><text x="848" y="72" text-anchor="middle" class="pert-node-name">D</text><text x="848" y="94" text-anchor="middle" class="pert-node-time">Duración: 5.33 d</text></g>
+<g class="pert-node"><rect x="766" y="175" width="164" height="80" rx="18"/><text x="848" y="202" text-anchor="middle" class="pert-node-name">E</text><text x="848" y="224" text-anchor="middle" class="pert-node-time">Duración: 3.17 d</text></g>
+</svg><div class="graph-legend"><span><i class="legend-line constraint"></i>Dependencia</span><span><i class="legend-line objective"></i>Ruta crítica</span><span><i class="legend-dot critical-dot"></i>Actividad crítica</span><span><i class="legend-dot noncritical-dot"></i>Actividad no crítica</span></div></div></div></section></main></body></html>

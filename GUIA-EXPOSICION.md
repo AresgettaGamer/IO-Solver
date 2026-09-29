@@ -1,4 +1,6 @@
-# IO Solver v6.0 — Guía rápida para explicar el proyecto
+# IO Solver v7.0.0 — Guía rápida para explicar el proyecto
+
+> Nota: los reportes PERT / CPM se imprimen con una hoja Carta independiente del diseño de pantalla y con los diagramas ajustados al ancho útil.
 
 > **Alcance de esta guía:** esta guía está enfocada exclusivamente en el **módulo Simplex**, que es el componente que se presenta para la exención. El resto de la aplicación no forma parte de la explicación principal de esta guía.
 
@@ -74,4 +76,4 @@ La versión de entrega es **IO Solver 5.1**. Las versiones 2.x corresponden al d
 
 ## Diagnóstico de condiciones especiales
 
-La Versión 6.0 puede explicar por qué el procedimiento terminó o encontró una situación especial. Además, durante la importación distingue el dominio de no negatividad de las restricciones estructurales y separa los empates de variable entrante de los empates de razón. No presenta estas condiciones como errores de software: las presenta como estados matemáticos del procedimiento. Puede señalar infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes muy pequeños.
+La Versión 6.1 puede explicar por qué el procedimiento terminó o encontró una situación especial. Además, durante la importación distingue el dominio de no negatividad de las restricciones estructurales y separa los empates de variable entrante de los empates de razón. No presenta estas condiciones como errores de software: las presenta como estados matemáticos del procedimiento. Puede señalar infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes muy pequeños.
