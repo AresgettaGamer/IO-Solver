@@ -1922,7 +1922,27 @@ function importModelIntoEditor(model, exerciseName = '') {
   const cleanName = String(exerciseName || '').trim().slice(0, 100);
   if (cleanName && simplexTools.projectName) simplexTools.projectName.value = cleanName;
   showMessage(cleanName ? `Modelo importado como «${cleanName}». Revísalo antes de resolver.` : 'Modelo importado al editor. Revísalo antes de resolver.', 'ok');
-  document.getElementById('problem-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('problem-form').scrollIntoView({ behavior: window.ioScrollBehavior(), block: 'start' });
+}
+
+/* ── Metadatos de origen (v7.11.0): páginas, OCR y palabras dudosas. Solo aparecen cuando el texto viene de un documento. ── */
+function candidateMetaSpans(c) {
+  const m = c.meta; if (!m) return '';
+  const pages = m.pages && m.pages.length ? `<span>${m.pages.length > 1 ? `Páginas ${m.pages[0]}–${m.pages[m.pages.length - 1]}` : `Página ${m.pages[0]}`}</span>` : '';
+  const ocr = m.ocrWords ? '<span title="Texto reconocido mediante OCR">OCR</span>' : '';
+  const low = m.lowConf ? `<span class="meta-warn">⚠ ${m.lowConf} palabra(s) dudosa(s)</span>` : '';
+  return pages + ocr + low;
+}
+function candidateNotice(c) {
+  const m = c.meta; if (!m) return '';
+  let html = '';
+  if (m.ocrWords) html += '<div class="candidate-warning" role="status"><strong>Texto obtenido por OCR.</strong> Verifica coeficientes, signos de desigualdad y subíndices antes de usar el modelo; si algo está mal, corrígelo en «Ver texto detectado» o con «Interpretar / editar».</div>';
+  if (m.kind && m.kind.type === 'transport') html += '<div class="semantic-note"><strong>Parece un problema de transporte.</strong> Impórtalo desde el módulo Transporte (tarjeta «Importar PDF o imagen»), donde se revisa la matriz de costos. <button type="button" class="btn secondary" data-open-transport>Abrir Transporte</button></div>';
+  return html;
+}
+function candidateTextView(c) {
+  if (c.meta && c.meta.lowConf && c.meta.lines && window.IODocumentImport) return `<div class="ocr-text-body" tabindex="0" aria-label="Texto leído; las palabras dudosas llevan un signo de interrogación">${window.IODocumentImport.markupLowConfidence(c.meta.lines)}</div>`;
+  return `<pre>${escapeHtml(c.text)}</pre>`;
 }
 
 function renderCandidates(candidates, sourceLabel = 'Texto analizado') {
@@ -1934,12 +1954,13 @@ function renderCandidates(candidates, sourceLabel = 'Texto analizado') {
   el.pdfResults.innerHTML = `<div class="candidate-summary"><strong>${escapeHtml(sourceLabel)}</strong><span>${candidates.length} bloque(s) detectado(s)</span></div>` + candidates.map((c, i) => {
     const title = c.title || `Ejercicio ${i + 1}`;
     const manualActions = !c.model.ok ? `<button type="button" class="btn secondary manual-interpret-btn" data-index="${i}">Interpretar / editar</button><button type="button" class="btn secondary copy-ai-prompt-btn" data-index="${i}">Preparar solicitud para IA</button>` : '';
-    return `<article class="exercise-candidate"><h3>${escapeHtml(title)}</h3><div class="detected-meta"><span>${c.model.ok ? '✓ Modelo detectado' : '⚠ Revisión manual'}</span>${c.model.ok ? `<span>${c.model.type === 'max' ? 'Maximización' : 'Minimización'}</span><span>${c.model.objective.length} variable(s)</span><span>${c.model.constraints.length} restricción(es)</span>` : ''}</div>${modelPreviewHtml(c.model)}<details><summary>Ver texto detectado</summary><pre>${escapeHtml(c.text)}</pre></details><div class="actions">${c.model.ok ? `<button type="button" class="btn primary import-use-btn" data-index="${i}">Usar este modelo</button>` : manualActions}</div></article>`;
+    return `<article class="exercise-candidate"><h3>${escapeHtml(title)}</h3><div class="detected-meta"><span>${c.model.ok ? '✓ Modelo detectado' : '⚠ Revisión manual'}</span>${c.model.ok ? `<span>${c.model.type === 'max' ? 'Maximización' : 'Minimización'}</span><span>${c.model.objective.length} variable(s)</span><span>${c.model.constraints.length} restricción(es)</span>` : ''}${candidateMetaSpans(c)}</div>${candidateNotice(c)}${modelPreviewHtml(c.model)}<details><summary>Ver texto detectado</summary>${candidateTextView(c)}</details><div class="actions">${c.model.ok ? `<button type="button" class="btn primary import-use-btn" data-index="${i}">Usar este modelo</button>` : manualActions}</div></article>`;
   }).join('');
   el.pdfResults.querySelectorAll('.import-use-btn').forEach(btn => btn.addEventListener('click', () => {
     const candidate = candidates[Number(btn.dataset.index)];
     importModelIntoEditor(candidate.model, candidate.title);
   }));
+  el.pdfResults.querySelectorAll('[data-open-transport]').forEach(btn => btn.addEventListener('click', () => { const b = document.querySelector('#launcher [data-module=transportation]'); if (b) b.click(); }));
   el.pdfResults.querySelectorAll('.manual-interpret-btn').forEach(btn => btn.addEventListener('click', () => openManualInterpretation(candidates[Number(btn.dataset.index)])));
   el.pdfResults.querySelectorAll('.copy-ai-prompt-btn').forEach(btn => btn.addEventListener('click', () => prepareAiPrompt(candidates[Number(btn.dataset.index)])));
 }
@@ -1980,7 +2001,7 @@ function openManualInterpretation(candidate) {
     out.innerHTML = `<div class="candidate-success"><strong>✓ Modelo reconstruido</strong>${modelPreviewHtml(result)}<div class="actions"><button type="button" class="btn primary use-reanalyzed-btn">Usar este modelo</button></div></div>`;
     out.querySelector('.use-reanalyzed-btn').addEventListener('click', () => { importModelIntoEditor(result, candidate.title); });
   });
-  wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  wrapper.scrollIntoView({ behavior: window.ioScrollBehavior(), block: 'start' });
 }
 
 function prepareAiPrompt(candidate) {
@@ -1992,64 +2013,10 @@ function prepareAiPrompt(candidate) {
   if (target) { target.value = prompt; target.focus(); target.select(); }
 }
 
-async function ensurePdfJs() {
-  if (window.__simplexPdfJs) return window.__simplexPdfJs;
-  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
-  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
-  window.__simplexPdfJs = mod;
-  return mod;
-}
-
-function pdfTextItemGeometry(item) {
-  const t = item?.transform || [];
-  return {
-    text: String(item?.str || ''),
-    x: Number(t[4]) || 0,
-    y: Number(t[5]) || 0,
-    width: Number(item?.width) || 0,
-    hasEOL: Boolean(item?.hasEOL),
-  };
-}
-
-function groupPdfItemsIntoLines(items) {
-  const usable = items.map(pdfTextItemGeometry).filter(item => item.text.trim());
-  if (!usable.length) return [];
-
-  // PDF.js devuelve los fragmentos en el orden interno del PDF, no necesariamente
-  // en el orden visual. Primero agrupamos por coordenada Y y después ordenamos
-  // cada línea de izquierda a derecha para reconstruir el texto que ve el usuario.
-  usable.sort((a, b) => b.y - a.y || a.x - b.x);
-  const lines = [];
-  const tolerance = 3.5;
-
-  for (const item of usable) {
-    let line = lines.find(candidate => Math.abs(candidate.y - item.y) <= tolerance);
-    if (!line) {
-      line = { y: item.y, items: [] };
-      lines.push(line);
-    }
-    line.items.push(item);
-  }
-
-  lines.sort((a, b) => b.y - a.y);
-  return lines.map(line => {
-    line.items.sort((a, b) => a.x - b.x);
-    let text = '';
-    let previous = null;
-    for (const item of line.items) {
-      const gap = previous ? item.x - (previous.x + previous.width) : 0;
-      // Un espacio visual amplio suele significar separación entre palabras.
-      // No añadimos espacios alrededor de signos matemáticos para evitar
-      // romper expresiones como <= o fracciones al reconstruirlas.
-      const startsWithOperator = /^[+\-*/=<>≤≥]/.test(item.text.trim());
-      const endsWithOperator = /[+\-*/=<>≤≥]$/.test(text.trim());
-      if (text && !startsWithOperator && !endsWithOperator && gap > 1.5) text += ' ';
-      text += item.text;
-      previous = item;
-    }
-    return text.trim();
-  }).filter(Boolean);
-}
+/* v7.11.0: la lectura de PDF vive en el lector compartido (document-import.js). Se conservan estos nombres como envoltorios para no
+   romper llamadas existentes, pero ya no hay una copia de la lógica de lectura en Simplex. */
+async function ensurePdfJs() { return window.IODocumentImport.loadPdfJs(); }
+function groupPdfItemsIntoLines(items) { return window.IODocumentImport.groupPdfItemsIntoLines(items); }
 
 function rebuildPdfText(rawLines) {
   // Conservamos saltos de página si existen en la fuente; los saltos de línea
@@ -2059,26 +2026,19 @@ function rebuildPdfText(rawLines) {
 }
 
 async function extractPdfText(file) {
-  const pdfjs = await ensurePdfJs();
-  const buffer = await file.arrayBuffer();
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
-  const pages = [];
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
-    const page = await pdf.getPage(pageNum);
-    const content = await page.getTextContent({ disableCombineTextItems: false });
-    const lines = groupPdfItemsIntoLines(content.items || []);
-    pages.push(lines.join('\n'));
-  }
-  return pages.join('\n\f\n');
+  const doc = await window.IODocumentImport.readDocument(file, { ocr: 'never' });
+  return doc.text;
 }
 
-function analyzeTextInput(text, label = 'Texto pegado') {
+function analyzeTextInput(text, label = 'Texto pegado', doc = null) {
   const blocks = splitPdfExercises(text);
+  const located = doc && window.IODocumentImport ? window.IODocumentImport.locateBlocks(blocks, doc) : null;
   const heading = /^(?:(?:\d+|[A-Z])\s*[.)-]\s*)?(?:ejercicio|ejerc\.|problema|problem|modelo)\s*(?:n[°ºo.]?\s*)?\d+\b/i;
   const candidates = blocks.map((block, i) => {
     const first = block.split(/\n/)[0] || `Ejercicio ${i + 1}`;
     const title = heading.test(first) ? first : `Bloque ${i + 1}`;
-    return { title, text: block, model: extractModelFromText(block) };
+    const kind = window.IODocumentImport ? window.IODocumentImport.classifyText(block) : null;
+    return { title, text: block, model: extractModelFromText(block), meta: located ? { ...located[i], kind } : null };
   });
   renderCandidates(candidates, label);
   return candidates;
@@ -2094,7 +2054,7 @@ function loadExample() {
   ]});
   showMessage('Ejemplo cargado.', 'ok');
   el.resultSection.classList.add('hidden');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: window.ioScrollBehavior() });
 }
 function showMessage(text, kind = '') { el.message.textContent = text; el.message.className = `message ${kind}`.trim(); }
 
@@ -2117,27 +2077,37 @@ el.analyzeText.addEventListener('click', () => {
   el.pdfStatus.className = 'message ok';
 });
 
+const documentImporter = window.IODocumentImport ? window.IODocumentImport.createProgressUI(el.pdfStatus.parentElement) : null;
+function setImportStatus(text, kind = '') { el.pdfStatus.textContent = text; el.pdfStatus.className = `message ${kind}`.trim(); }
+
+async function importDocumentFile(file, options = {}) {
+  const DI = window.IODocumentImport;
+  if (!DI || !documentImporter) { setImportStatus('El lector de documentos no está disponible (no se cargó document-import.js).', 'error'); return; }
+  setImportStatus('Leyendo documento…');
+  const out = await documentImporter.run(file, options);
+  if (out.cancelled) { setImportStatus('Importación cancelada.'); return; }
+  if (out.error) { setImportStatus(out.error.message || 'No se pudo leer el documento.', 'error'); return; }
+  const doc = out.doc;
+  if (!doc.text.trim()) {
+    setImportStatus(doc.ocr.needed ? 'No se pudo recuperar texto de este documento: parece escaneado y el OCR no encontró contenido legible. Prueba con una imagen más nítida.' : 'El documento no contiene texto legible.', 'error');
+    return;
+  }
+  const candidates = analyzeTextInput(doc.text, file.name, doc);
+  el.problemText.value = doc.text.slice(0, 120000);
+  const okCount = candidates.filter(c => c.model.ok).length;
+  const via = doc.ocr.used ? ` (con OCR${doc.ocr.avgConf != null ? `, confianza media de palabras ${doc.ocr.avgConf} %` : ''})` : '';
+  if (!okCount) setImportStatus(`Se recuperó texto de ${file.name}${via}, pero no se pudo construir ningún modelo. Revisa el texto detectado o usa «Interpretar / editar».`, 'error');
+  else setImportStatus(`${doc.kind === 'pdf' ? 'PDF' : 'Imagen'} leído: ${file.name}${via}. Revisa los ejercicios detectados antes de importarlos.`, 'ok');
+  if (doc.warnings.length) el.pdfStatus.textContent += ` Avisos: ${doc.warnings.slice(0, 2).join(' ')}`;
+}
+
 el.pdfInput.addEventListener('change', async () => {
   const file = el.pdfInput.files?.[0];
   if (!file) return;
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    el.pdfStatus.textContent = 'Selecciona un archivo PDF válido.';
-    el.pdfStatus.className = 'message error';
-    return;
-  }
-  el.pdfStatus.textContent = 'Leyendo PDF…';
-  el.pdfStatus.className = 'message';
-  try {
-    const text = await extractPdfText(file);
-    if (!text.trim()) throw new Error('El PDF no contiene texto seleccionable. Puede ser un documento escaneado o basado en imágenes.');
-    analyzeTextInput(text, file.name);
-    el.problemText.value = text.slice(0, 120000);
-    el.pdfStatus.textContent = `PDF leído: ${file.name}. Revisa los ejercicios detectados antes de importarlos.`;
-    el.pdfStatus.className = 'message ok';
-  } catch (error) {
-    el.pdfStatus.textContent = `No se pudo leer el PDF: ${error.message || error}`;
-    el.pdfStatus.className = 'message error';
-  }
+  const ok = /\.(pdf|png|jpe?g|webp)$/i.test(file.name) || /^(application\/pdf|image\/(png|jpeg|webp))$/.test(file.type);
+  if (!ok) { setImportStatus('Selecciona un PDF o una imagen PNG, JPEG o WebP.', 'error'); return; }
+  await importDocumentFile(file);
+  el.pdfInput.value = '';      // permite volver a elegir el mismo archivo (p. ej. tras cancelar o para releerlo)
 });
 
 el.form.addEventListener('submit', (event) => {
@@ -2154,7 +2124,7 @@ el.form.addEventListener('submit', (event) => {
       ? (inputWarnings.length ? 'Problema resuelto; revisa las advertencias del diagnóstico.' : 'Problema resuelto correctamente.')
       : 'El modelo se procesó; revisa el estado del resultado.';
     showMessage(message, result.status === 'optimal' && !inputWarnings.length ? 'ok' : '');
-    el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.resultSection.scrollIntoView({ behavior: window.ioScrollBehavior(), block: 'start' });
   } catch (error) {
     el.resultSection.classList.add('hidden');
     showMessage(error instanceof Error ? error.message : 'No se pudo procesar el problema.', 'error');
@@ -2248,7 +2218,7 @@ function renderSimplexHistory() {
     loadProblemIntoEditor(item.problem, item.name);
     if (item.result) renderResults(item.problem, item.result);
     simplexTools.historyPanel.classList.add('hidden');
-    el.resultSection.scrollIntoView({ behavior:'smooth', block:'start' });
+    el.resultSection.scrollIntoView({ behavior: window.ioScrollBehavior(), block:'start' });
   }));
   simplexTools.historyPanel.querySelectorAll('.simplex-history-add').forEach(btn => btn.addEventListener('click', () => {
     const item = history.find(x => x.id === btn.dataset.id); if (!item) return;
@@ -2278,7 +2248,7 @@ function renderSimplexDelivery() {
   simplexTools.deliveryList.innerHTML = list.length ? list.map((item,i) => `<div class="delivery-item"><div><strong>${i+1}. ${escapeHtml(item.name || `Ejercicio ${i+1}`)}</strong><small>${escapeHtml(item.result?.status || 'sin resultado')} · agregado ${new Date(item.addedAt).toLocaleString('es-MX')}</small></div><div class="delivery-item-actions"><button class="icon-btn simplex-delivery-open" data-id="${escapeHtml(item.id)}" type="button" title="Abrir ejercicio" aria-label="Abrir ejercicio"><svg viewBox="0 0 24 24"><path d="M4 6h6l2 2h8v10H4zM4 10h16"/></svg></button><button class="icon-btn simplex-delivery-remove" data-id="${escapeHtml(item.id)}" type="button" title="Quitar" aria-label="Quitar de la entrega"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div></div>`).join('') : '<div class="utility-empty">Agrega ejercicios resueltos con el icono de documento de la barra superior.</div>';
   simplexTools.deliveryList.querySelectorAll('.simplex-delivery-open').forEach(btn => btn.addEventListener('click', () => {
     const item = list.find(x => x.id === btn.dataset.id); if (!item) return;
-    loadProblemIntoEditor(item.problem, item.name); renderResults(item.problem, item.result); el.resultSection.scrollIntoView({behavior:'smooth',block:'start'});
+    loadProblemIntoEditor(item.problem, item.name); renderResults(item.problem, item.result); el.resultSection.scrollIntoView({behavior: window.ioScrollBehavior(),block:'start'});
   }));
   simplexTools.deliveryList.querySelectorAll('.simplex-delivery-remove').forEach(btn => btn.addEventListener('click', () => removeFromSimplexDelivery(btn.dataset.id)));
 }
@@ -2980,7 +2950,7 @@ function startSimplexPractice(mode = 'guided') {
   renderSimplexPractice();
   simplexTools.practice.classList.remove('hidden');
   setSimplexUtilityButtonState(simplexTools.practiceBtn, true);
-  simplexTools.practice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  simplexTools.practice.scrollIntoView({ behavior: window.ioScrollBehavior(), block: 'nearest' });
 }
 
 function saveSimplexProject() {
@@ -2988,7 +2958,7 @@ function saveSimplexProject() {
     if (!window.IOSolverServices?.storage?.downloadJson) throw new Error('El servicio de guardado común no está disponible.');
     const problem = captureProblemFromEditor();
     const resultMatches = currentLastProblem && JSON.stringify(currentLastProblem) === JSON.stringify(problem);
-    const data = { app:'IO Solver', module:'Simplex', type:'simplex', version:'7.0.0', projectName:currentProjectName(), problem, result: resultMatches ? window.IOSolverServices.storage.clone(currentLastResult) : null, savedAt:new Date().toISOString() };
+    const data = { app:'IO Solver', module:'Simplex', type:'simplex', version:'8.0.0', projectName:currentProjectName(), problem, result: resultMatches ? window.IOSolverServices.storage.clone(currentLastResult) : null, savedAt:new Date().toISOString() };
     window.IOSolverServices.storage.downloadJson(data, currentProjectName(), 'ejercicio-simplex');
     showMessage('Ejercicio guardado como archivo JSON.','ok');
   } catch (error) { showMessage(error.message || 'No se pudo guardar el ejercicio.','error'); }
@@ -3015,7 +2985,7 @@ async function loadSimplexProject(file) {
 function resetSimplexProject() {
   state.variables=2; state.constraints=3; state.objectiveType='max'; state.nonnegative=true;
   el.variableCount.value='2'; el.constraintCount.value='3'; el.objectiveType.value='max'; el.nonnegative.checked=true;
-  renderEditor(); if(simplexTools.projectName) simplexTools.projectName.value='Ejercicio de Simplex'; currentLastProblem=null; currentLastResult=null; if(simplexTools.practice) { simplexTools.practice.classList.add('hidden'); simplexTools.practice.innerHTML=''; } if(simplexTools.verifier) simplexTools.verifier.classList.add('hidden'); if(simplexTools.audit) { simplexTools.audit.classList.add('hidden'); simplexTools.audit.innerHTML=''; } simplexPracticeState=createSimplexPracticeState(); setSimplexUtilityButtonState(simplexTools.practiceBtn,false); setSimplexUtilityButtonState(simplexTools.verifyBtn,false); setSimplexUtilityButtonState(simplexTools.auditBtn,false); el.resultSection.classList.add('hidden'); showMessage('Nuevo ejercicio listo.','ok'); window.scrollTo({top:0,behavior:'smooth'});
+  renderEditor(); if(simplexTools.projectName) simplexTools.projectName.value='Ejercicio de Simplex'; currentLastProblem=null; currentLastResult=null; if(simplexTools.practice) { simplexTools.practice.classList.add('hidden'); simplexTools.practice.innerHTML=''; } if(simplexTools.verifier) simplexTools.verifier.classList.add('hidden'); if(simplexTools.audit) { simplexTools.audit.classList.add('hidden'); simplexTools.audit.innerHTML=''; } simplexPracticeState=createSimplexPracticeState(); setSimplexUtilityButtonState(simplexTools.practiceBtn,false); setSimplexUtilityButtonState(simplexTools.verifyBtn,false); setSimplexUtilityButtonState(simplexTools.auditBtn,false); el.resultSection.classList.add('hidden'); showMessage('Nuevo ejercicio listo.','ok'); window.scrollTo({top:0,behavior: window.ioScrollBehavior()});
 }
 function copySimplexProcedure() {
   if (!currentLastProblem || !currentLastResult) { showMessage('Resuelve primero un ejercicio para copiar su procedimiento.','error'); return; }

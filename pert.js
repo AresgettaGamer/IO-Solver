@@ -469,7 +469,7 @@ function renderPertResult(result) {
     pertEl.advanced.innerHTML = '';
   }
   pertState.lastResult = result;
-  pertEl.result.scrollIntoView({behavior:'smooth', block:'start'});
+  pertEl.result.scrollIntoView({behavior: window.ioScrollBehavior(), block:'start'});
 }
 function calculatePert() {
   try { const activities=parseActivities(); const result=solvePertCpm(activities); renderPertResult(result); pertMessage('Cálculo terminado. Revisa la ruta crítica y las holguras.', 'ok'); }
@@ -517,7 +517,7 @@ function getPertProjectData() {
     app: 'IO Solver',
     module: 'PERT',
     type: 'pert-cpm',
-    version: '7.0.0',
+    version: '8.0.0',
     projectName: String(pertEl.projectName?.value || '').trim() || 'Mi proyecto PERT / CPM',
     mode: Boolean(pertState.mode),
     learning: Boolean(pertState.learning),
@@ -816,3 +816,59 @@ pertEl.saveBtn?.addEventListener('click', savePertProject);
 pertEl.loadBtn?.addEventListener('click', () => pertEl.fileInput?.click());
 pertEl.fileInput?.addEventListener('change', e => loadPertProject(e.target.files?.[0]));
 pertEl.exportReport?.addEventListener('click', exportPertReport);
+
+// Importación compartida de actividades desde texto, PDF o imagen (v8.0.0).
+(function initPertDocumentImport() {
+  const input = document.getElementById('pert-doc-input');
+  const textArea = document.getElementById('pert-import-text');
+  const interpretBtn = document.getElementById('pert-interpret-text');
+  const status = document.getElementById('pert-doc-status');
+  const preview = document.getElementById('pert-import-preview');
+  if (!input || !textArea || !interpretBtn || !status || !preview) return;
+  let candidate = null, progress = null;
+  const clean = value => String(value ?? '').trim();
+  const escape = value => pertEsc(value);
+  const parseActivityText = window.IOPertImportAPI?.parseActivityText;
+  if (!parseActivityText) { status.textContent = 'El intérprete de actividades no está disponible.'; status.className = 'message error'; return; }
+  function renderPreview(parsed, sourceLabel) {
+    candidate = { ...parsed, sourceLabel };
+    const pertCols = parsed.hasPertEstimates;
+    const head = `<thead><tr><th>Actividad</th><th>Predecesoras</th><th>Duración${pertCols ? ' (Te)' : ''}</th>${pertCols ? '<th>Optimista</th><th>Más probable</th><th>Pesimista</th>' : ''}</tr></thead>`;
+    const body = parsed.rows.map((r, i) => `<tr data-preview-row="${i}"><td><input data-pfield="name" aria-label="Nombre de actividad ${i+1}" value="${escape(r.name)}"></td><td><input data-pfield="pred" aria-label="Predecesoras de actividad ${i+1}" value="${escape(r.pred)}" placeholder="—"></td><td><input data-pfield="duration" aria-label="Duración de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.duration)}"></td>${pertCols ? `<td><input data-pfield="o" aria-label="Optimista de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.o)}"></td><td><input data-pfield="m" aria-label="Más probable de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.m)}"></td><td><input data-pfield="p" aria-label="Pesimista de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.p)}"></td>` : ''}</tr>`).join('');
+    const warning = parsed.warnings.length ? `<div class="optimization-warning"><strong>Revisar antes de aplicar:</strong><ul>${parsed.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul></div>` : '<p class="message ok">Se detectaron actividades. Revisa cada celda antes de aplicar.</p>';
+    preview.innerHTML = `<div class="import-review"><div class="section-title-row"><h3>Revisión de actividades — ${escape(sourceLabel)}</h3><p>${parsed.rows.length} actividad(es) · ${pertCols?'incluye estimaciones PERT':'duración fija CPM'}</p></div>${warning}<div class="table-wrap"><table class="pert-import-preview">${head}<tbody>${body}</tbody></table></div><div class="pert-import-actions"><button type="button" class="btn primary" id="pert-import-apply">Aplicar actividades</button><button type="button" class="btn secondary" id="pert-import-cancel">Descartar</button></div></div>`;
+    preview.classList.remove('hidden');
+  }
+  function parseAndPreview(source, label) {
+    try { const parsed = parseActivityText(source); renderPreview(parsed, label); status.textContent = `Lectura preparada desde ${label}. Revisa las actividades y sus relaciones; aún no se aplicaron.`; status.className = 'message ok'; }
+    catch (error) { candidate = null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent = error.message || 'No se pudo interpretar el texto de actividades.'; status.className = 'message error'; }
+  }
+  interpretBtn.addEventListener('click', () => parseAndPreview(textArea.value, 'texto pegado'));
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0]; if (!file) return;
+    try {
+      if (!window.IODocumentImport) throw new Error('El lector compartido de documentos no está disponible.');
+      if (!progress) progress = window.IODocumentImport.createProgressUI(status.parentElement);
+      const response = await progress.run(file, { ocr: 'auto' });
+      if (response.cancelled) return; if (response.error) throw response.error;
+      const doc = response.doc; const text = String(doc.text || (doc.pages || []).map(page => (page.lines || []).map(line => line.text || '').join('\n')).join('\n')).trim();
+      if (!text) throw new Error('No se extrajo texto. El OCR de escaneos e imágenes continúa en beta.');
+      textArea.value = text; parseAndPreview(text, file.name);
+      if (doc.ocr?.used) status.textContent += ' El texto proviene de OCR beta y debe revisarse con especial cuidado.';
+    } catch (error) { status.textContent = error.message || 'No se pudo leer el documento.'; status.className = 'message error'; }
+    finally { input.value = ''; }
+  });
+  preview.addEventListener('click', event => {
+    if (event.target.closest('#pert-import-cancel')) { candidate=null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent='Borrador descartado. El proyecto actual no cambió.'; status.className='message'; return; }
+    if (!event.target.closest('#pert-import-apply')) return;
+    try {
+      const pertCols = Boolean(candidate?.hasPertEstimates); if (!candidate) throw new Error('No hay actividades para aplicar.');
+      const rows = [...preview.querySelectorAll('tbody tr')].map((tr, i) => { const val = field => tr.querySelector(`[data-pfield="${field}"]`)?.value ?? ''; return { name: clean(val('name')), pred: clean(val('pred')).replace(/^[-–—]+$/,'').trim(), duration: clean(val('duration')), o: clean(val('o')) || clean(val('duration')), m: clean(val('m')) || clean(val('duration')), p: clean(val('p')) || clean(val('duration')) }; });
+      const names = new Set(); rows.forEach((r,i)=>{ const key=r.name.toLocaleLowerCase(); if(!r.name) throw new Error(`La fila ${i+1} necesita nombre.`); if(names.has(key)) throw new Error(`El nombre «${r.name}» está repetido.`); names.add(key); const d=Number(r.duration); if(!Number.isFinite(d)||d<=0) throw new Error(`La duración de «${r.name}» debe ser mayor que cero.`); if(pertCols){const o=Number(r.o),m=Number(r.m),p=Number(r.p);if(![o,m,p].every(Number.isFinite)||o<0||o>m||m>p)throw new Error(`En «${r.name}» debe cumplirse 0 ≤ O ≤ M ≤ P.`);}});
+      const missing=rows.flatMap(r=>r.pred.split(/[,;]+/).map(s=>s.trim()).filter(Boolean).filter(s=>!names.has(s.toLocaleLowerCase())).map(s=>`${r.name} → ${s}`)); if(missing.length) throw new Error(`Corrige las predecesoras no encontradas: ${missing.join(', ')}.`);
+      pertState.rows=rows; pertState.mode=pertCols; pertState.lastResult=null; pertEl.mode.checked=pertCols; syncPertColumns(); renderPertRows(); pertEl.result.classList.add('hidden'); pertMessage(`Se aplicaron ${rows.length} actividades al editor. Revisa la tabla y pulsa «Calcular» cuando estés listo.`, 'ok');
+      candidate=null; preview.classList.add('hidden'); preview.innerHTML=''; document.getElementById('pert-activity-body')?.scrollIntoView({behavior:window.ioScrollBehavior(),block:'start'});
+    } catch (error) { status.textContent = error.message || 'No se pudo aplicar el borrador.'; status.className='message error'; }
+  });
+  window.IOPertImportAPI = { parseActivityText };
+})();

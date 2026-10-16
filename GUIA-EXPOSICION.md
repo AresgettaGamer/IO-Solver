@@ -1,8 +1,8 @@
-# IO Solver v7.0.0 — Guía rápida para explicar el proyecto
+# IO Solver v8.0.0 — Guía rápida para explicar el proyecto
 
 > Nota: los reportes PERT / CPM se imprimen con una hoja Carta independiente del diseño de pantalla y con los diagramas ajustados al ancho útil.
 
-> **Alcance de esta guía:** esta guía está enfocada exclusivamente en el **módulo Simplex**, que es el componente que se presenta para la exención. El resto de la aplicación no forma parte de la explicación principal de esta guía.
+> **Alcance de esta guía:** esta guía está enfocada exclusivamente en el **módulo Simplex**, que es el componente que se presenta para la exención. Los módulos PERT / CPM y Modelos de transporte están integrados en la aplicación, pero no forman parte de la explicación principal de esta guía.
 
 ## En 30 segundos
 
@@ -32,6 +32,8 @@
 - `style.css`: contiene el diseño visual, distribución, tablas, formularios, temas claro/oscuro y estilos de los controles.
 - `simplex.js`: contiene la lógica principal del módulo Simplex: formulación, estandarización, algoritmo, dos fases, verificación, método gráfico, interpretación e importación de problemas.
 - `app.js`: controla la navegación general, el launcher y las preferencias visuales comunes.
+- `transportation.js`: incorpora los modelos de transporte y el método de la Esquina Noroeste.
+- `transportation.css`: mantiene la apariencia del módulo alineada con el sistema visual compartido.
 
 ## Si pregunta “¿por qué el programa puede leer PDFs?”
 
@@ -69,11 +71,12 @@ Porque permite trabajar con ejercicios escritos previamente y probar la capacida
 
 “No programamos solamente una calculadora de resultados; automatizamos el procedimiento del método Simplex que normalmente realizamos manualmente y dejamos visibles las decisiones y operaciones que llevan de una tabla a la siguiente.”
 
-## Versión final
+## Versión actual y alcance
 
-La versión de entrega es **IO Solver 5.1**. Las versiones 2.x corresponden al desarrollo incremental de funcionalidades y al refinamiento visual; 5.1 consolida la versión estable actual que se utiliza para la presentación del proyecto.
+La versión actual es **IO Solver v8.0.0**. Integra cinco módulos: Simplex, PERT / CPM, Modelos de transporte, Ruta más corta y Optimización clásica. Esta guía conserva su explicación enfocada en Simplex.
 
+La importación de PDF con texto seleccionable es la ruta más fiable. El OCR de escaneos, fotografías, tablas como imagen y escritura manuscrita sigue en **beta**: revisa y corrige la interpretación antes de aplicar un modelo. La importación nunca debe considerarse una confirmación matemática por sí sola.
 
-## Diagnóstico de condiciones especiales
+## Próxima etapa
 
-La Versión 6.1 puede explicar por qué el procedimiento terminó o encontró una situación especial. Además, durante la importación distingue el dominio de no negatividad de las restricciones estructurales y separa los empates de variable entrante de los empates de razón. No presenta estas condiciones como errores de software: las presenta como estados matemáticos del procedimiento. Puede señalar infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes muy pequeños.
+La IA visual y el asistente de ayuda de la interfaz quedan fuera de v8.0.0 y se consideran para v8.1.0, después de cerrar y publicar esta beta funcional.

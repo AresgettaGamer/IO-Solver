@@ -4,10 +4,64 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IO Solver</title>
+  <meta name="application-name" content="IO Solver">
+  <meta name="version" content="8.0.0">
   <link rel="icon" href="favicon-io-solver.svg?v=5.1" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="liquid-glass.css">
+  <link rel="stylesheet" href="transportation.css">
+  <link rel="stylesheet" href="document-import.css">
+  <link rel="stylesheet" href="route-shortest.css">
+  <script>
+    /* Movimiento: una sola fuente de verdad para JS (preferencia del sistema + ajuste de la app) */
+    window.ioMotion = function () {
+      var r = document.documentElement.dataset.lgMotion;
+      var sys = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+      return { reduce: sys || r === 'reduced', off: r === 'off' };
+    };
+    window.ioScrollBehavior = function () { var m = window.ioMotion(); return (m.reduce || m.off) ? 'auto' : 'smooth'; };
+  </script>
+  <script>try{var st=localStorage.getItem('io-solver-style');if(st)document.documentElement.setAttribute('data-style',st)}catch(e){}</script>
+  <script>try{var b=navigator.userAgentData&&navigator.userAgentData.brands;if(b&&b.some(function(x){return /Chromium/.test(x.brand)}))document.documentElement.classList.add('lg-lens')}catch(e){}</script>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs primitiveUnits="objectBoundingBox"><filter id="lg-lens" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feImage href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='x' x1='0' x2='1' y1='0' y2='0'%3E%3Cstop offset='0' stop-color='rgb(255,0,0)'/%3E%3Cstop offset='0.16' stop-color='rgb(128,0,0)'/%3E%3Cstop offset='0.84' stop-color='rgb(128,0,0)'/%3E%3Cstop offset='1' stop-color='rgb(0,0,0)'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x1='0' x2='0' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='rgb(0,255,0)'/%3E%3Cstop offset='0.16' stop-color='rgb(0,128,0)'/%3E%3Cstop offset='0.84' stop-color='rgb(0,128,0)'/%3E%3Cstop offset='1' stop-color='rgb(0,0,0)'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100'/%3E%3Crect width='100' height='100' fill='url(%23x)'/%3E%3Crect width='100' height='100' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3C/svg%3E" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="m"/><feDisplacementMap in="SourceGraphic" in2="m" scale="28" xChannelSelector="R" yChannelSelector="G"/></filter><filter id="lg-lens-sm" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feImage href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='x' x1='0' x2='1' y1='0' y2='0'%3E%3Cstop offset='0' stop-color='rgb(255,0,0)'/%3E%3Cstop offset='0.30' stop-color='rgb(128,0,0)'/%3E%3Cstop offset='0.70' stop-color='rgb(128,0,0)'/%3E%3Cstop offset='1' stop-color='rgb(0,0,0)'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x1='0' x2='0' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='rgb(0,255,0)'/%3E%3Cstop offset='0.30' stop-color='rgb(0,128,0)'/%3E%3Cstop offset='0.70' stop-color='rgb(0,128,0)'/%3E%3Cstop offset='1' stop-color='rgb(0,0,0)'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100'/%3E%3Crect width='100' height='100' fill='url(%23x)'/%3E%3Crect width='100' height='100' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3C/svg%3E" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="m"/><feDisplacementMap in="SourceGraphic" in2="m" scale="12" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
+
+  <div id="settings-pop" popover class="settings-pop" role="dialog" aria-labelledby="settings-title">
+    <header class="settings-head">
+      <h2 id="settings-title">Ajustes</h2>
+      <button class="icon-btn glass-action" type="button" popovertarget="settings-pop" popovertargetaction="hide" aria-label="Cerrar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </header>
+    <div class="settings-body">
+    <section class="settings-group"><h3>Apariencia</h3>
+      <div class="lg-field"><span class="lg-field-label">Estilo</span><div class="lg-seg" role="radiogroup" aria-label="Estilo" style="--n:2"><label><input type="radio" name="lg-style" value="neon"><span>Neón</span></label><label><input type="radio" name="lg-style" value="apple"><span>Apple</span></label></div><p class="lg-hint">Neón: vidrio vívido sobre color. Apple: superficies sólidas y vidrio solo en controles flotantes.</p></div>
+      <div class="theme-tools settings-fields" aria-label="Apariencia">
+      <label class="compact-control"><span>Tema</span><select id="theme-select" aria-label="Tema de la interfaz"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></label>
+      <label class="compact-control"><span>Color</span><select id="accent-select" aria-label="Color de acento"><option value="blue">Azul</option><option value="teal">Turquesa</option><option value="violet">Violeta</option><option value="pink">Rosa</option><option value="magenta">Magenta</option><option value="indigo">Índigo</option><option value="green">Verde</option></select></label>
+    </div>
+    </section>
+    <section class="settings-group"><h3>Cristal</h3>
+      <div class="lg-field"><span class="lg-field-label">Material</span><div class="lg-seg" role="radiogroup" aria-label="Material" style="--n:4"><label><input type="radio" name="lg-glass" value="solid"><span>Sólido</span></label><label><input type="radio" name="lg-glass" value="soft"><span>Suave</span></label><label><input type="radio" name="lg-glass" value="normal"><span>Normal</span></label><label><input type="radio" name="lg-glass" value="strong"><span>Intenso</span></label></div></div>
+      <label class="learn-toggle" for="lg-opt-lens">
+          <input id="lg-opt-lens" type="checkbox" checked><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>Refracción (lente)</strong><small id="lg-lens-note">Deforma lo que hay detrás del cristal en los bordes. Solo en navegadores Chromium.</small></span>
+        </label>
+      <label class="learn-toggle" for="lg-opt-bg">
+          <input id="lg-opt-bg" type="checkbox" checked><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>Fondo de color</strong><small>Manchas de color con tu acento detrás del cristal.</small></span>
+        </label>
+      <label class="learn-toggle" for="lg-opt-spec">
+          <input id="lg-opt-spec" type="checkbox" checked><span class="switch-visual" aria-hidden="true"></span>
+          <span><strong>Reflejo que sigue al cursor</strong><small>Brillo especular que se mueve con el puntero.</small></span>
+        </label>
+    </section>
+    <section class="settings-group"><h3>Movimiento</h3>
+      <div class="lg-field"><span class="lg-field-label">Animaciones</span><div class="lg-seg" role="radiogroup" aria-label="Animaciones" style="--n:3"><label><input type="radio" name="lg-motion" value="full"><span>Completas</span></label><label><input type="radio" name="lg-motion" value="reduced"><span>Reducidas</span></label><label><input type="radio" name="lg-motion" value="off"><span>Ninguna</span></label></div></div>
+    </section>
+    </div>
+    <footer class="settings-foot"><button class="btn secondary" id="lg-reset" type="button">Restablecer cristal y movimiento</button></footer>
+  </div>
+
   <main id="launcher" class="launcher-shell">
   <section class="launcher-hero">
     <div>
@@ -15,10 +69,9 @@
       <h1>IO Solver</h1>
       <p class="launcher-subtitle">Herramientas educativas para resolver y comprender problemas de Investigación de Operaciones.</p>
     </div>
-    <div class="theme-tools launcher-theme" aria-label="Apariencia">
-      <label class="compact-control"><span>Tema</span><select id="theme-select" aria-label="Tema de la interfaz"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></label>
-      <label class="compact-control"><span>Color</span><select id="accent-select" aria-label="Color de acento"><option value="blue">Azul</option><option value="teal">Turquesa</option><option value="violet">Violeta</option><option value="pink">Rosa</option><option value="magenta">Magenta</option><option value="indigo">Índigo</option><option value="green">Verde</option></select></label>
-    </div>
+    <button class="icon-btn glass-action settings-btn" type="button" popovertarget="settings-pop" aria-label="Ajustes" title="Ajustes" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
   </section>
   <section class="launcher-grid">
     <button class="module-card" data-module="simplex" type="button">
@@ -35,8 +88,28 @@
       <span class="module-card-text">Organiza actividades de un proyecto, calcula tiempos tempranos y tardíos, holguras, duración total y ruta crítica.</span>
       <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
     </button>
+    <button class="module-card" data-module="transportation" type="button">
+      <span class="module-number">03</span>
+      <span class="module-icon" aria-hidden="true">⇄</span>
+      <span class="module-card-title">Modelos de transporte</span>
+      <span class="module-card-text">Construye la matriz de costos, importa PDF o texto, marca rutas prohibidas, comprueba el balance y compara las soluciones iniciales.</span>
+      <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </button>
+    <button class="module-card" data-module="route-shortest" type="button">
+      <span class="module-number">04</span><span class="module-icon" aria-hidden="true">↗</span>
+      <span class="module-card-title">Ruta más corta</span>
+      <span class="module-card-text">Modela una red ponderada, calcula la ruta de menor costo con Dijkstra y revisa cada actualización de distancias.</span>
+      <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </button>
+    <button class="module-card" data-module="optimization" type="button">
+      <span class="module-number">05</span><span class="module-icon" aria-hidden="true">ƒ</span>
+      <span class="module-card-title">Optimización clásica</span>
+      <span class="module-card-text">Analiza funciones polinómicas, máximos y mínimos, concavidad y puntos de inflexión; muestra procedimiento y gráfica.</span>
+      <span class="module-card-action" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </button>
   </section>
-  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 7.0.0</footer>
+  <p class="import-note launcher-beta-note"><strong>Importación de documentos:</strong> el texto seleccionable de PDF es la ruta preferida; el OCR para escaneos, fotografías y tablas sigue en beta. Revisa siempre los datos detectados antes de resolver.</p>
+  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 8.0.0</footer>
 </main>
 
 <main id="simplex-module" class="app-shell hidden">
@@ -49,7 +122,9 @@
         <h1>Simplex</h1>
         <p class="subtitle">Construye el modelo, reproduce el procedimiento paso a paso y compara el resultado con el método gráfico cuando sea posible. Pensado para estudiar y automatizar el procedimiento de clase.</p>
       </div>
-      <div class="hero-tools"><div class="badge">Módulo de Programación Lineal</div></div>
+      <div class="hero-tools"><button class="icon-btn glass-action settings-btn" type="button" popovertarget="settings-pop" aria-label="Ajustes" title="Ajustes" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      </button><div class="badge">Módulo de Programación Lineal</div></div>
     </header>
 
     <section class="quick-guide panel">
@@ -133,16 +208,16 @@
       <div class="section-title-row">
         <div>
           <h2>2. Importar ejercicios desde PDF o texto</h2>
-          <p>Pega un ejercicio o carga un PDF con texto. El programa detecta bloques, intenta leer ecuaciones explícitas y, cuando no existen, prueba una interpretación semántica del enunciado para proponerte un modelo revisable. Esta versión incluye perfiles para los ejercicios de tu Problemario y un diagnóstico de posibles problemas de factibilidad.</p>
+          <p>Pega un ejercicio o carga un PDF o una imagen. El programa detecta bloques, intenta leer ecuaciones explícitas y, cuando no existen, prueba una interpretación semántica del enunciado para proponerte un modelo revisable. Esta versión incluye perfiles para los ejercicios de tu Problemario y un diagnóstico de posibles problemas de factibilidad.</p>
         </div>
       </div>
       <div class="import-grid">
         <div class="import-card">
-          <div class="import-kicker">PDF</div>
+          <div class="import-kicker">PDF / imagen</div>
           <label class="file-drop" for="pdf-input">
-            <input id="pdf-input" type="file" accept="application/pdf">
-            <strong>Seleccionar PDF</strong>
-            <small>La lectura funciona con PDFs que contienen texto seleccionable.</small>
+            <input id="pdf-input" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp">
+            <strong>Seleccionar PDF o imagen</strong>
+            <small>PDF con texto, PDF escaneado o mixto, y fotos o capturas (PNG, JPEG, WebP). Si hace falta, se usa OCR en tu dispositivo.</small>
           </label>
           <div id="pdf-status" class="message" aria-live="polite"></div>
         </div>
@@ -227,7 +302,7 @@ Maximizar Z = 300 X1 + 150 X2
     </section>
     <section id="simplex-print-report" class="simplex-print-report hidden"></section>
     <footer class="app-footer">
-      <span>IO Solver · módulo Simplex · v7.0.0</span>
+      <span>IO Solver · módulo Simplex · v8.0.0</span>
       <span>Las interpretaciones automáticas siempre deben revisarse.</span>
     </footer>
   </main>
@@ -242,7 +317,9 @@ Maximizar Z = 300 X1 + 150 X2
       <h1>PERT / CPM</h1>
       <p class="subtitle">Programa proyectos mediante redes de actividades, calcula la ruta crítica y, cuando existe incertidumbre, estima la duración esperada con PERT.</p>
     </div>
-    <div class="hero-tools"><div class="badge">Programación de proyectos</div></div>
+    <div class="hero-tools"><button class="icon-btn glass-action settings-btn" type="button" popovertarget="settings-pop" aria-label="Ajustes" title="Ajustes" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      </button><div class="badge">Programación de proyectos</div></div>
   </header>
 
   <section class="quick-guide panel">
@@ -261,6 +338,29 @@ Maximizar Z = 300 X1 + 150 X2
       <div><strong>04</strong><span>Calcular tiempos tardíos y holguras.</span></div>
       <div><strong>05</strong><span>Identificar la ruta crítica.</span></div>
     </div>
+  </section>
+
+  <section class="panel pert-document-import" aria-labelledby="pert-import-title">
+    <div class="section-title-row"><div><h2 id="pert-import-title">Importar actividades desde PDF, imagen o texto</h2><p>Pega una tabla o selecciona un documento. La detección es heurística: revisa el borrador editable antes de cargarlo al proyecto; el programa no calcula automáticamente al importar.</p></div></div>
+    <div class="route-import-grid">
+      <div class="import-card">
+        <div class="import-kicker">PDF / imagen</div>
+        <label class="file-drop" for="pert-doc-input"><input id="pert-doc-input" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"><strong>Seleccionar PDF o imagen</strong><small>Se reutiliza el lector compartido. El PDF con texto suele ser más fiable; OCR beta para imágenes y escaneos.</small></label>
+        <div id="pert-doc-status" class="message" aria-live="polite"></div>
+      </div>
+      <div class="import-card">
+        <div class="import-kicker">Texto copiado o transcrito</div>
+        <label for="pert-import-text">Una actividad por fila<textarea id="pert-import-text" rows="7" placeholder="Actividad | Predecesoras | Duración
+A | — | 3
+B | A | 4
+C | A | 2
+D | B, C | 5"></textarea></label>
+        <small class="muted">También puedes usar separadores de tabulación o punto y coma. Para PERT, agrega Optimista, Más probable y Pesimista.</small>
+        <div class="pert-import-actions"><button type="button" class="btn secondary" id="pert-interpret-text">Interpretar texto</button></div>
+      </div>
+    </div>
+    <div id="pert-import-preview" class="pert-import-review hidden"></div>
+    <p class="import-note">La tabla importada solo reemplaza las actividades al pulsar «Aplicar actividades». Confirma nombres, precedencias y duraciones, en particular cuando provengan de OCR.</p>
   </section>
 
   <section class="panel">
@@ -335,9 +435,195 @@ Maximizar Z = 300 X1 + 150 X2
   </section>
 </main>
 
+<main id="transportation-module" class="app-shell hidden transport-module">
+  <header class="hero module-hero">
+    <div>
+      <button class="back-button" data-back-launcher type="button" aria-label="Volver al inicio" title="Volver al inicio">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+      </button>
+      <p class="eyebrow">Investigación de Operaciones · Módulo 3</p>
+      <h1>Modelos de transporte</h1>
+      <p class="subtitle">Formula el modelo, verifica el balance y compara dos métodos de solución inicial: Esquina Noroeste y Costo Mínimo.</p>
+    </div>
+    <div class="hero-tools">
+      <button class="icon-btn glass-action settings-btn" type="button" popovertarget="settings-pop" aria-label="Ajustes" title="Ajustes" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      </button>
+      <div class="badge">Distribución de recursos</div>
+    </div>
+  </header>
+
+  <section class="quick-guide panel">
+    <div class="quick-guide-head">
+      <div>
+        <p class="eyebrow">Referencia de clase</p>
+        <h2>Del modelo a la solución inicial</h2>
+        <p>Completa la matriz de costos y las cantidades de oferta y demanda. También puedes marcar rutas imposibles con X. IO Solver comprueba el balance y explica las asignaciones paso a paso.</p>
+      </div>
+      <span class="source-pill">Transporte</span>
+    </div>
+    <div class="guide-steps">
+      <div><strong>01</strong><span>Capturar fuentes, destinos, costos, oferta y demanda.</span></div>
+      <div><strong>02</strong><span>Comprobar y ajustar el balance si hace falta.</span></div>
+      <div><strong>03</strong><span>Asignar el mínimo entre oferta y demanda restantes, respetando rutas permitidas.</span></div>
+      <div><strong>04</strong><span>Comparar Esquina Noroeste y Costo Mínimo.</span></div>
+    </div>
+  </section>
+
+  <section class="panel" id="transport-import-section" aria-labelledby="transport-import-title">
+    <div class="section-title-row">
+      <div><h2 id="transport-import-title">Importar desde PDF o imagen</h2><p>Carga un problema de transporte (PDF con texto, escaneado o mixto, o una foto). Se reconstruye la matriz y la revisas y corriges antes de aplicarla al modelo; nada se resuelve automáticamente.</p></div>
+    </div>
+    <div class="import-grid">
+      <div class="import-card">
+        <div class="import-kicker">PDF / imagen</div>
+        <label class="file-drop" for="transport-doc-input">
+          <input id="transport-doc-input" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp">
+          <strong>Seleccionar PDF o imagen</strong>
+          <small>El documento se procesa en tu dispositivo; si hace falta OCR, solo se descargan la librería y el idioma.</small>
+        </label>
+        <div id="transport-doc-status" class="message" aria-live="polite"></div>
+        <div id="transport-doc-reuse" class="hidden"></div>
+      </div>
+      <div class="import-card transport-paste-card">
+        <div class="import-kicker">Texto copiado o transcrito</div>
+        <label for="transport-paste-text">Pegar el enunciado o la tabla
+          <textarea id="transport-paste-text" rows="7" placeholder="Ejemplo:
+Fábrica  D1  D2  Oferta
+F1        8   3   40
+F2        5   6   60
+Demanda  30  40"></textarea>
+        </label>
+        <small class="muted">Puedes pegar texto de Word, un PDF o transcribir una foto. Se mostrará una matriz editable para revisar antes de aplicar.</small>
+        <div class="review-actions"><button type="button" class="btn secondary" id="transport-paste-btn">Interpretar texto</button></div>
+      </div>
+    </div>
+    <div id="transport-import-results" class="import-results hidden"></div>
+    <p class="import-note">La lectura de tablas y el OCR son heurísticos: revisa siempre la matriz importada. Las celdas dudosas se señalan con texto y subrayado, y las correcciones que hagas se conservan.</p>
+  </section>
+
+  <section class="panel">
+    <div class="section-title-row">
+      <div><h2>1. Datos del problema</h2><p>Los valores de las celdas son costos unitarios de transporte. Las unidades se asignarán durante el procedimiento.</p></div>
+    </div>
+    <div class="transport-project-toolbar">
+      <label class="transport-project-name" for="transport-project-name">Ejercicio / proyecto
+        <input id="transport-project-name" type="text" maxlength="100" value="Ejercicio de transporte" placeholder="Nombre del ejercicio">
+      </label>
+      <div class="project-file-actions" aria-label="Gestión del modelo de transporte">
+        <button class="icon-btn glass-action" id="transport-new-btn" type="button" aria-label="Nuevo modelo" title="Nuevo modelo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="icon-btn glass-action" id="transport-save-btn" type="button" aria-label="Guardar modelo" title="Guardar modelo en JSON"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5zM8 4v6h8V4M8 20v-6h8v6z"/></svg></button>
+        <button class="icon-btn glass-action" id="transport-load-btn" type="button" aria-label="Abrir modelo" title="Abrir modelo JSON"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6l2 2h8v10H4zM4 10h16"/></svg></button>
+        <input id="transport-file-input" type="file" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <div class="transport-builder-actions" aria-label="Editar tamaño del modelo">
+      <button class="btn secondary" id="transport-add-source" type="button">+ Fuente</button>
+      <button class="btn secondary" id="transport-remove-source" type="button">− Fuente</button>
+      <button class="btn secondary" id="transport-add-destination" type="button">+ Destino</button>
+      <button class="btn secondary" id="transport-remove-destination" type="button">− Destino</button>
+      <span class="muted">De 2 a 8 fuentes y destinos.</span>
+    </div>
+    <div class="table-wrap transport-table-wrap">
+      <table id="transport-input-table" class="transport-input-table" aria-label="Matriz de costos, oferta y demanda"></table>
+    </div>
+    <div id="transport-balance-preview" class="transport-balance-preview" aria-live="polite"></div>
+    <p class="muted transport-route-help">Para indicar que una ruta es imposible, pulsa × dentro de su celda. La celda mostrará X y quedará excluida del modelo y de los métodos de resolución.</p>
+    <div class="transport-method-picker-wrap">
+      <fieldset class="transport-method-picker">
+        <legend>Método para obtener la solución inicial</legend>
+        <label class="transport-method-option"><input type="radio" name="transport-method" value="northwest" checked><span><strong>Esquina Noroeste</strong><small>Comienza en la esquina superior izquierda; no compara costos para elegir.</small></span></label>
+        <label class="transport-method-option"><input type="radio" name="transport-method" value="minimum-cost"><span><strong>Costo Mínimo</strong><small>Selecciona en cada iteración una de las rutas con menor costo disponible.</small></span></label>
+      </fieldset>
+      <div id="transport-manual-tie-control" class="transport-manual-tie-control" hidden>
+        <button class="btn secondary" id="transport-tie-mode" type="button" aria-pressed="false">Elegir empates manualmente: Desactivado</button>
+        <p class="muted">Desactivado: el programa elige automáticamente la primera ruta empatada en orden de matriz. Activado: podrás elegir una ruta en cada empate.</p>
+      </div>
+    </div>
+    <div class="transport-builder-actions">
+      <button class="btn secondary" id="transport-example-balanced" type="button">Cargar ejemplo balanceado</button>
+      <button class="btn secondary" id="transport-example-surplus" type="button">Cargar ejemplo con excedente</button>
+    </div>
+    <div class="transport-section-actions">
+      <button class="btn primary" id="transport-solve-btn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13M12 6l6 6-6 6"/></svg>Analizar modelo y resolver</button>
+    </div>
+    <p id="transport-message" class="message" aria-live="polite"></p>
+  </section>
+
+  <section id="transport-result" class="transport-result hidden">
+    <section class="panel">
+      <div class="section-title-row"><div><h2>2. Modelo matemático y balance</h2><p>La función objetivo y las restricciones se generan a partir de los datos que introdujiste.</p></div></div>
+      <div id="transport-model-output"></div>
+    </section>
+
+    <section class="panel">
+      <div class="transport-step-head">
+        <div><h2 id="transport-step-heading">3. Método de la Esquina Noroeste</h2><p id="transport-step-description" class="muted">En cada paso se asigna el mínimo entre la oferta de la fuente activa y la demanda del destino activo.</p></div>
+        <span id="transport-step-status" class="transport-step-status" aria-live="polite" aria-atomic="true">Iteración —</span>
+      </div>
+      <div id="transport-step-text" class="transport-step-text" aria-live="polite" aria-atomic="true"></div>
+      <div id="transport-step-table"></div>
+      <div id="transport-tie-choice" class="transport-tie-choice hidden" aria-live="polite"></div>
+      <div class="transport-step-nav">
+        <div class="transport-step-nav-main">
+          <button class="btn secondary" id="transport-previous-step" type="button">← Anterior</button>
+          <button class="btn primary" id="transport-next-step" type="button">Siguiente →</button>
+        </div>
+        <div class="transport-step-nav-main">
+          <button class="btn secondary" id="transport-show-all" type="button" aria-pressed="false">Mostrar solución completa</button>
+          <button class="btn secondary" id="transport-reset-steps" type="button">Volver al inicio</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="transport-final-section" class="panel">
+      <div class="section-title-row">
+        <div><h2>4. Solución inicial</h2><p>Las cantidades asignadas se muestran dentro de cada celda, junto con el costo unitario que se usa para calcular Z.</p></div>
+        <button class="icon-btn glass-action" id="transport-print-btn" type="button" aria-label="Imprimir o guardar reporte PDF" title="Imprimir / Guardar PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V4h12v6.1M6 18H4V10h16v8h-2M7 14h10v6H7z"/></svg></button>
+      </div>
+      <div id="transport-final-summary"></div>
+      <div id="transport-final-table"></div>
+    </section>
+  </section>
+  <footer class="app-footer"><span>IO Solver · módulo Transporte · v8.0.0</span><span>Los métodos de transporte generan soluciones iniciales, no necesariamente óptimas.</span></footer>
+</main>
+
+<main id="route-shortest-module" class="app-shell hidden">
+  <header class="hero module-hero"><div><button class="back-button" data-back-launcher type="button" aria-label="Volver al inicio" title="Volver al inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg></button><p class="eyebrow">Investigación de Operaciones · Módulo 4</p><h1>Ruta más corta</h1><p class="subtitle">Modela una red con pesos no negativos, elige un origen y un destino y observa cómo Dijkstra actualiza las distancias hasta encontrar la ruta de menor costo.</p></div><div class="hero-tools"><div class="badge">Redes ponderadas</div></div></header>
+  <section class="quick-guide panel"><div class="quick-guide-head"><div><p class="eyebrow">Referencia rápida</p><h2>De las conexiones a la ruta</h2><p>Cada arista indica el costo, distancia o tiempo entre dos nodos. Puedes usar una red dirigida o no dirigida.</p></div><span class="source-pill">Dijkstra</span></div><div class="guide-steps"><div><strong>01</strong><span>Definir nodos, conexiones y pesos.</span></div><div><strong>02</strong><span>Elegir origen y destino.</span></div><div><strong>03</strong><span>Fijar la menor distancia temporal y relajar sus conexiones.</span></div><div><strong>04</strong><span>Reconstruir y revisar la ruta final.</span></div></div><p class="route-method-note">Dijkstra solo se aplica a pesos no negativos. Este módulo calcula una ruta de costo mínimo para el modelo ingresado; no interpreta restricciones narrativas automáticamente.</p></section>
+  <section class="panel" aria-labelledby="route-import-title"><div class="section-title-row"><h2 id="route-import-title">Importar conexiones</h2><p>Pega una fila por conexión (por ejemplo, A B 4 o A → B: 4), o carga un PDF o una imagen con texto que se pueda extraer. La lectura OCR sigue en desarrollo.</p></div><div class="route-import-grid"><div class="import-card"><div class="import-kicker">PDF / imagen</div><label class="file-drop" for="route-file"><input id="route-file" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"><strong>Seleccionar PDF o imagen</strong><small>El archivo se procesa localmente cuando las bibliotecas están disponibles.</small></label><div id="route-file-status" class="message" aria-live="polite"></div></div><div class="import-card"><div class="import-kicker">Texto copiado o transcrito</div><label for="route-paste-text">Conexiones<textarea id="route-paste-text" rows="7" placeholder="Origen Destino Peso
+A B 4
+A C 2
+C B 1
+B D 5
+D E 2"></textarea></label><div class="route-actions"><button id="route-parse-text" class="btn secondary" type="button">Interpretar texto</button><button id="route-example" class="btn secondary" type="button">Cargar ejemplo</button></div></div></div></section>
+  <section class="panel"><div class="section-title-row"><h2>1. Modelo de red</h2><p>Revisa las conexiones antes de calcular. No se permiten pesos negativos.</p></div><div class="table-wrap"><table class="route-edge-table"><thead><tr><th>Origen</th><th>Destino</th><th>Peso</th><th></th></tr></thead><tbody id="route-edge-body"></tbody></table></div><div class="route-actions"><button class="btn secondary" id="route-add-edge" type="button">Agregar conexión</button></div><div class="route-source-controls"><label for="route-source">Nodo de origen<select id="route-source"></select></label><label for="route-target">Nodo de destino<select id="route-target"></select></label><label class="learn-toggle" for="route-directed"><input id="route-directed" type="checkbox"><span class="switch-visual" aria-hidden="true"></span><span><strong>Red dirigida</strong><small>Desactivada: las conexiones se pueden recorrer en ambos sentidos.</small></span></label></div><div class="route-actions"><button id="route-solve" class="btn primary" type="button">Calcular ruta más corta</button></div><p id="route-status" class="message" aria-live="polite"></p></section>
+  <section id="route-result" class="results hidden"><section class="panel"><div class="section-title-row"><h2>2. Resultado de la ruta</h2><p id="route-summary"></p></div></section><section class="panel"><div class="section-title-row"><h2>3. Red visual</h2><p>La ruta de menor costo se resalta en el diagrama.</p></div><div id="route-graph"></div></section><section class="panel"><div class="section-title-row"><h2>4. Procedimiento de Dijkstra</h2><p>La tabla registra la distancia provisional desde el origen y el predecesor de cada nodo en cada paso.</p></div><div id="route-steps"></div></section></section>
+  <footer class="app-footer"><span>IO Solver · Ruta más corta · v8.0.0</span><span>Algoritmo de Dijkstra · pesos no negativos</span></footer>
+</main>
+
+<main id="optimization-module" class="app-shell hidden">
+  <header class="hero module-hero"><div><button class="back-button" data-back-launcher type="button" aria-label="Volver al inicio" title="Volver al inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg></button><p class="eyebrow">Investigación de Operaciones · Módulo 5</p><h1>Optimización clásica</h1><p class="subtitle">Estudia las derivadas, máximos y mínimos, concavidad y puntos de inflexión de una función polinómica de una variable.</p></div><div class="hero-tools"><div class="badge">Análisis diferencial</div></div></header>
+  <section class="quick-guide panel"><div class="quick-guide-head"><div><p class="eyebrow">Referencia rápida</p><h2>De la función al análisis</h2><p>El sistema deriva el polinomio, localiza candidatos numéricamente y muestra qué pruebas se utilizan para clasificarlos.</p></div><span class="source-pill">f′ y f′′</span></div><div class="guide-steps"><div><strong>01</strong><span>Definir la función y el intervalo válido.</span></div><div><strong>02</strong><span>Calcular primera y segunda derivada.</span></div><div><strong>03</strong><span>Clasificar los extremos locales y absolutos.</span></div><div><strong>04</strong><span>Comprobar cambios de concavidad.</span></div></div></section>
+  <section class="panel"><div class="section-title-row"><h2>1. Función que se analizará</h2><p>Usa x y operadores +, −, *, /, ^ y paréntesis. Se aceptan formas como 2x y (x+1)(x−1).</p></div><div class="optimization-input-grid"><label for="optimization-expression">Función f(x)<input id="optimization-expression" class="optimization-function-input" type="text" value="x^3 - 6x^2 + 9x + 1" placeholder="x^3 - 6x^2 + 9x + 1"></label><label for="optimization-min">Límite inferior<input id="optimization-min" type="number" step="any" value="0"></label><label for="optimization-max">Límite superior<input id="optimization-max" type="number" step="any" value="5"></label></div><div class="route-actions"><button id="optimization-analyze" class="btn primary" type="button">Analizar función</button><button id="optimization-example" class="btn secondary" type="button">Cargar ejemplo</button></div><p id="optimization-status" class="message" aria-live="polite">Escribe o revisa la función y pulsa «Analizar función».</p></section>
+  <section class="panel"><div class="section-title-row"><h2>2. Herramientas de análisis</h2><p>Selecciona qué parte del procedimiento quieres estudiar.</p></div><div class="optimization-mode-picker" role="group" aria-label="Vista del análisis"><button class="optimization-mode-btn" data-optimization-view="analysis" aria-pressed="true" type="button">Análisis de función</button><button class="optimization-mode-btn" data-optimization-view="maxmin" aria-pressed="false" type="button">Máximos y mínimos</button><button class="optimization-mode-btn" data-optimization-view="inflection" aria-pressed="false" type="button">Puntos de inflexión</button><button class="optimization-mode-btn" data-optimization-view="optimization" aria-pressed="false" type="button">Optimización clásica</button></div><label for="optimization-objective">Objetivo del problema de optimización<select id="optimization-objective"><option value="max">Maximizar f(x)</option><option value="min">Minimizar f(x)</option></select></label><div id="optimization-output" class="optimization-output"><p class="muted">Los resultados aparecerán aquí tras analizar la función.</p></div></section>
+  <section class="panel"><h2>Alcance y precisión</h2><p>La versión 8.0.0 admite polinomios de una variable de grado máximo 8 y calcula raíces numéricas dentro del intervalo indicado. No convierte automáticamente enunciados narrativos en funciones ni resuelve aún optimización multivariable, funciones no polinómicas o multiplicadores de Lagrange. Usa los procedimientos de tu clase como referencia y revisa resultados próximos o repetidos.</p></section>
+  <footer class="app-footer"><span>IO Solver · Optimización clásica · v8.0.0</span><span>Funciones polinómicas · cálculo numérico educativo</span></footer>
+</main>
+
 <script src="io-services.js"></script>
+  <script src="document-import.js"></script>
+  <script src="transport-import.js"></script>
+  <script src="pert-import-math.js"></script>
   <script src="simplex.js"></script>
   <script src="pert.js"></script>
+  <script src="transportation.js"></script>
+  <script src="transport-import-ui.js"></script>
+  <script src="route-shortest-math.js"></script>
+  <script src="route-shortest.js"></script>
+  <script src="optimization-math.js"></script>
+  <script src="optimization-classic.js"></script>
   <script src="app.js"></script>
+  <script src="liquid-glass.js" defer></script>
 </body>
 </html>

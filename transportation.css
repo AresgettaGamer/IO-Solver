@@ -1,0 +1,220 @@
+/* IO Solver v7.10.0 · Sistema de componentes del módulo Transporte.
+   Consume los mismos tokens y estados de tema/acento que Simplex y PERT/CPM. */
+.transport-project-toolbar { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.transport-project-name { display:grid; gap:7px; min-width:min(360px,100%); flex:1 1 320px; }
+.transport-project-name input { width:100%; }
+.transport-builder-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin: 0 0 14px; }
+.transport-builder-actions .btn { min-height:38px; padding:8px 12px; font-size:var(--fs-sm); }
+.transport-table-wrap { margin:12px 0 14px; }
+.transport-input-table { min-width:760px; width:100%; border-collapse:separate; border-spacing:0; }
+.transport-input-table th, .transport-input-table td { padding:8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+.transport-input-table thead th { background:var(--panel-soft); color:var(--muted); font-size:var(--fs-sm); font-weight:750; }
+.transport-input-table tbody tr:last-child th, .transport-input-table tbody tr:last-child td { border-bottom:0; }
+.transport-input-table th:first-child { min-width:132px; text-align:left; }
+.transport-input-table th:last-child { min-width:120px; }
+.transport-table-label { display:grid; gap:5px; min-width:84px; font-size:var(--fs-xs); color:var(--muted); font-weight:750; }
+.transport-table-label input { min-width:76px; min-height:36px; padding:6px 8px; text-align:center; font-size:var(--fs-sm); font-weight:700; }
+.transport-number { min-width:68px; min-height:38px; padding:6px 8px; text-align:center; font-variant-numeric:tabular-nums; }
+.transport-offer-input, .transport-demand-input { font-weight:800; }
+.transport-supply-heading { display:block; padding:0 6px; }
+.transport-demand-input-row th { background:var(--panel-soft); font-weight:800; }
+.transport-total-input { min-width:110px; background:var(--panel-soft); }
+.transport-total-input span, .transport-total-input strong { display:block; }
+.transport-total-input span { color:var(--muted); font-size:var(--fs-xs); }
+.transport-total-input strong { font-size:var(--fs-base); font-variant-numeric:tabular-nums; }
+.transport-balance-preview { display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; padding:12px 14px; margin:12px 0 4px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--panel-soft); color:var(--muted); font-size:var(--fs-sm); }
+.transport-balance-preview strong { color:var(--text); font-variant-numeric:tabular-nums; }
+.transport-balance-indicator { display:inline-flex; align-items:center; gap:7px; padding:5px 9px; border-radius:var(--r-pill); font-weight:800; }
+.transport-balance-indicator.is-balanced { color:var(--success); background:color-mix(in srgb,var(--success) 10%,transparent); }
+.transport-balance-indicator.is-adjusted { color:var(--warning); background:color-mix(in srgb,var(--warning) 12%,transparent); }
+.transport-balance-indicator.is-incomplete { color:var(--muted); }
+.transport-section-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px; }
+.transport-section-actions .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+.transport-section-actions svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.transport-formula-group { margin-top:16px; }
+.transport-formula-group:first-child { margin-top:0; }
+.transport-formula-group h4 { margin:0 0 8px; font-size:var(--fs-base); }
+.transport-formula-list { display:grid; gap:6px; }
+.transport-formula-line { overflow-wrap:anywhere; padding:10px 12px; background:var(--panel-soft); border:1px solid var(--border); border-radius:var(--r-sm); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:var(--fs-sm); line-height:1.6; }
+.transport-formula-line.transport-objective { color:var(--text); border-color:color-mix(in srgb,var(--accent) 40%,var(--border)); }
+.transport-formula-hint { margin:7px 0 0; font-size:var(--fs-sm); }
+.transport-model-note { margin-bottom:14px; padding:13px 15px; border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--r-sm); background:var(--panel-soft); }
+.transport-model-note.is-balanced { border-left-color:var(--success); }
+.transport-model-note.is-adjusted { border-left-color:var(--warning); }
+.transport-step-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.transport-step-status { display:inline-flex; padding:5px 10px; border-radius:var(--r-pill); color:var(--accent-text); background:var(--accent-soft); font-size:var(--fs-sm); font-weight:850; white-space:nowrap; }
+.transport-step-text { padding:16px; margin-bottom:14px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--panel-soft); }
+.transport-step-text p:last-child { margin-bottom:0; }
+.transport-allocation-equation { display:inline-flex; align-items:center; gap:12px; margin:2px 0 12px; padding:10px 13px; border-radius:var(--r-md); background:var(--accent-soft); color:var(--accent-text); font-size:var(--fs-lg); font-weight:800; font-variant-numeric:tabular-nums; }
+.transport-allocation-equation strong { color:var(--text); font-size:1.25em; }
+.transport-accent-value { color:var(--accent-text); }
+.transport-next-move { padding-top:10px; border-top:1px solid var(--border); color:var(--muted); font-size:var(--fs-sm); }
+.transport-step-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:14px; }
+.transport-step-nav .transport-step-nav-main { display:flex; gap:8px; flex-wrap:wrap; }
+.transport-grid-wrap { width:100%; overflow-x:auto; border:1px solid var(--border); border-radius:var(--r-md); background:var(--panel); }
+.transport-step-grid { width:100%; min-width:760px; border-collapse:separate; border-spacing:0; font-variant-numeric:tabular-nums; }
+.transport-step-grid th, .transport-step-grid td { padding:9px 10px; border-bottom:1px solid var(--border); border-right:1px solid var(--border); text-align:center; vertical-align:middle; }
+.transport-step-grid thead th { position:sticky; top:0; z-index:1; background:var(--panel-soft); color:var(--muted); font-size:var(--fs-sm); font-weight:800; }
+.transport-step-grid tbody tr:last-child th, .transport-step-grid tbody tr:last-child td { border-bottom:0; }
+.transport-step-grid th:last-child, .transport-step-grid td:last-child { border-right:0; }
+.transport-step-grid tbody th { min-width:125px; text-align:left; background:var(--panel-soft); font-weight:850; }
+.transport-step-grid tbody th small, .transport-remaining-cell small, .transport-total-cell small, .transport-final-grid td small { display:block; margin-top:3px; color:var(--muted); font-size:var(--fs-xs); font-weight:500; }
+.transport-step-grid td { min-width:78px; }
+.transport-cell-cost { display:block; color:var(--muted); font-size:var(--fs-xs); font-weight:500; white-space:nowrap; }
+.transport-cell-allocation { display:block; margin-top:3px; color:var(--text); font-size:var(--fs-base); font-weight:800; }
+.transport-step-grid td.is-active { position:relative; background:var(--accent-soft); box-shadow:inset 0 0 0 2px var(--accent); }
+.transport-step-grid td.is-active .transport-cell-allocation { color:var(--accent-text); font-size:var(--fs-lg); }
+.transport-step-grid td.is-assigned .transport-cell-allocation { color:var(--accent-text); }
+.transport-step-grid tr.is-current-source > th, .transport-step-grid td.is-current-demand { background:color-mix(in srgb,var(--accent) 7%,var(--panel-soft)); }
+.transport-step-grid tr.is-adjustment > th, .transport-step-grid tr.is-adjustment > td { background:color-mix(in srgb,var(--warning) 6%,var(--panel)); color:var(--muted); border-top:1px dashed var(--border); }
+.transport-step-grid tr.is-dummy-source > th { color:var(--accent-text); }
+.transport-step-grid .transport-demand-row th, .transport-step-grid .transport-demand-row td { background:var(--panel-soft); font-weight:800; }
+.transport-remaining-cell { min-width:150px; }
+.transport-transition { display:inline-flex; gap:5px; align-items:center; justify-content:center; white-space:nowrap; font-weight:750; }
+.transport-before { color:var(--accent-text); font-weight:900; }
+.transport-arrow { color:var(--muted); }
+.transport-after, .transport-value-single { color:var(--text); font-weight:850; }
+.transport-value-single { display:inline-block; }
+.transport-summary-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+.transport-summary-card { min-width:0; padding:15px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--panel-soft); }
+.transport-summary-card span { display:block; color:var(--muted); font-size:var(--fs-sm); font-weight:700; }
+.transport-summary-card strong { display:block; margin-top:4px; font-size:var(--fs-lg); font-weight:900; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.transport-summary-card.is-primary { border-color:color-mix(in srgb,var(--accent) 40%,var(--border)); background:var(--accent-soft); }
+.transport-summary-card.is-primary strong { color:var(--accent-text); font-size:var(--fs-xl); }
+.transport-result-note { margin:12px 0 0; color:var(--muted); font-size:var(--fs-sm); }
+.transport-total-cell { min-width:125px; }
+.transport-total-cell strong { display:block; font-weight:850; }
+.transport-total-cell em { display:block; margin-top:4px; color:var(--warning); font-size:var(--fs-xs); font-style:normal; }
+.transport-final-grid td.is-satisfied { background:color-mix(in srgb,var(--success) 8%,var(--panel)); }
+.transport-final-grid td.is-unsatisfied { background:color-mix(in srgb,var(--danger) 8%,var(--panel)); }
+.transport-grid-wrap:focus-within { outline:2px solid color-mix(in srgb,var(--accent) 24%,transparent); outline-offset:2px; }
+.transport-result .section-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.transport-result .section-title-row p { max-width:var(--w-read); }
+.transport-step-grid input { max-width:100%; }
+@media (min-width: 781px) {
+  .transport-project-name { max-width:440px; }
+}
+@media (max-width: 780px) {
+  .transport-project-toolbar { align-items:stretch; flex-direction:column; }
+  .transport-project-name { min-width:0; width:100%; }
+  .transport-project-toolbar .project-file-actions { align-self:flex-start; }
+  .transport-summary-cards { grid-template-columns:1fr; }
+  .transport-step-head { flex-direction:column; }
+  .transport-section-actions { justify-content:stretch; }
+  .transport-section-actions .btn { flex:1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transport-step-grid td, .transport-balance-indicator, .transport-module .btn { transition:none !important; }
+}
+@media (prefers-contrast: more) {
+  .transport-step-grid td.is-active { outline:2px solid var(--text); outline-offset:-2px; }
+  .transport-model-note, .transport-step-text, .transport-balance-preview { border-width:2px; }
+}
+@media print {
+  #transportation-module .no-print, #transportation-module .transport-project-toolbar, #transportation-module .transport-builder-actions,
+  #transportation-module .transport-section-actions, #transportation-module .transport-step-nav { display:none !important; }
+  #transportation-module .panel { box-shadow:none !important; }
+  #transportation-module .transport-grid-wrap { overflow:visible !important; }
+  #transportation-module .transport-step-grid { min-width:0; font-size:8pt; }
+  #transportation-module .transport-step-grid th, #transportation-module .transport-step-grid td { padding:4px; }
+}
+
+/* v7.10.0 · Rutas prohibidas y Método de Costo Mínimo */
+.transport-route-help { margin: 2px 0 14px; font-size: var(--fs-sm); }
+.transport-cost-editor { display: grid; grid-template-columns: minmax(42px, 1fr) 28px; align-items: center; gap: 4px; min-width: 92px; }
+.transport-cost-editor .transport-number { min-width: 0; width: 100%; }
+.transport-route-toggle { display: inline-grid; place-items: center; width: 28px; min-width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--panel-soft); color: var(--muted); font: inherit; font-weight: 850; line-height: 1; cursor: pointer; }
+.transport-route-toggle:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+.transport-route-toggle[aria-pressed="true"] { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.transport-route-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.transport-route-x { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; min-height: 30px; padding: 2px 8px; border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 10%, var(--panel)); color: var(--danger); font-size: var(--fs-lg); font-weight: 900; }
+.transport-cost-editor.is-forbidden { grid-template-columns: 1fr 28px; }
+.transport-method-picker-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 16px 0; }
+.transport-method-picker { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0; border: 0; }
+.transport-method-picker legend { margin-bottom: 9px; color: var(--text); font-size: var(--fs-base); font-weight: 800; }
+.transport-method-option { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); cursor: pointer; }
+.transport-method-option:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.transport-method-option input { margin-top: 3px; accent-color: var(--accent); flex: 0 0 auto; }
+.transport-method-option span, .transport-method-option strong, .transport-method-option small { display: block; }
+.transport-method-option strong { font-size: var(--fs-base); color: var(--text); }
+.transport-method-option small { margin-top: 4px; color: var(--muted); line-height: 1.45; font-size: var(--fs-sm); }
+.transport-manual-tie-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel-soft); }
+.transport-manual-tie-control[hidden] { display: none !important; }
+.transport-manual-tie-control p { flex: 1 1 280px; margin: 0; font-size: var(--fs-sm); }
+.transport-tie-choice { margin-top: 14px; padding: 16px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: var(--r-md); background: var(--panel); }
+.transport-tie-prompt { margin: 0 0 10px; font-weight: 800; }
+.transport-tie-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.transport-tie-option { display: flex !important; flex-direction: column; align-items: flex-start !important; text-align: left; gap: 4px !important; min-height: 64px; }
+.transport-tie-option span { color: var(--muted); font-size: var(--fs-sm); font-weight: 500; }
+.transport-step-grid td.is-forbidden { background: color-mix(in srgb, var(--danger) 8%, var(--panel)); }
+.transport-forbidden-label { display: block; margin-top: 3px; color: var(--danger); font-size: var(--fs-xs); }
+.transport-step-grid td.is-tie-candidate { position: relative; background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.transport-tie-marker { display: block; margin-bottom: 4px; color: var(--accent-text); font-size: var(--fs-xs); font-weight: 850; }
+@media (max-width: 780px) {
+  .transport-method-picker { grid-template-columns: 1fr; }
+  .transport-method-option { min-height: 64px; }
+  .transport-cost-editor { min-width: 88px; }
+  .transport-manual-tie-control { align-items: stretch; }
+  .transport-tie-options { grid-template-columns: 1fr; }
+}
+@media (prefers-contrast: more) {
+  .transport-route-toggle, .transport-method-option, .transport-tie-choice { border-width: 2px; }
+  .transport-route-x, .transport-step-grid td.is-forbidden { border: 2px solid var(--danger); }
+}
+@media print {
+  .transport-route-toggle, .transport-method-picker-wrap, .transport-route-help, .transport-tie-choice { display: none !important; }
+  .transport-step-grid td.is-forbidden { background: #fee2e2 !important; color: #991b1b !important; }
+}
+
+
+/* v7.10.2 · Corrección del selector de método de transporte.
+   style.css aplica dimensiones y relleno de campos a todos los input;
+   restauramos aquí el tamaño natural del radio para que no ocupe la tarjeta completa. */
+.transport-method-picker {
+  margin: 0;
+  min-inline-size: 0;
+}
+.transport-method-picker legend {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.transport-method-option {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+.transport-method-option > input[type="radio"] {
+  appearance: auto;
+  -webkit-appearance: radio;
+  display: block;
+  flex: 0 0 24px;
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  align-self: flex-start;
+}
+.transport-method-option > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  overflow-wrap: anywhere;
+}
+.transport-method-option > span > strong,
+.transport-method-option > span > small {
+  width: auto;
+  max-width: 100%;
+}
+
+
+/* v7.10.3 · Identificación de destinos ficticios que absorben el excedente. */
+.transport-step-grid thead th small { display:block; margin-top:4px; color:var(--accent-text); font-size:var(--fs-xs); font-weight:650; }
+.transport-step-grid td.is-dummy-destination-cell { background:color-mix(in srgb,var(--accent) 5%,var(--panel)); }
+.transport-step-grid td.is-dummy-destination-cell.is-assigned .transport-cell-allocation { color:var(--accent-text); }

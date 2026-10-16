@@ -1,8 +1,96 @@
-# IO Solver v7.0.0 — Documentación técnica y guía de explicación
+# IO Solver v8.0.0 — Documentación técnica y guía de explicación
+
+## v8.0.0 — Cierre de la beta funcional principal
+
+La aplicación integra cinco módulos: Simplex, PERT / CPM, Transporte, Ruta más corta y Optimización clásica. La versión conserva los motores existentes de Simplex, PERT / CPM y Transporte; suma el algoritmo de Dijkstra y un analizador numérico de polinomios para el bloque de cálculo diferencial.
+
+### Nuevos componentes
+
+| Archivo | Responsabilidad |
+|---|---|
+| `route-shortest-math.js` | Núcleo puro de Dijkstra y parser de conexiones por texto; admite redes dirigidas/no dirigidas y pesos no negativos. |
+| `route-shortest.js` | Editor de aristas, importación preliminar, gráfico de red, resultado y tabla paso a paso. |
+| `optimization-math.js` | Parser seguro de polinomios, derivación simbólica por coeficientes, raíces numéricas, extremos e inflexiones. No ejecuta texto con `eval`. |
+| `optimization-classic.js` | Interfaz para análisis de función, máximos/mínimos, puntos de inflexión y optimización en intervalo cerrado. |
+| `pert-import-math.js` | Parser heurístico de actividades CPM/PERT desde filas de texto. |
+| `pert.js` | Flujo de revisión y aplicación de actividades importadas; el cálculo se mantiene detrás de «Calcular». |
+
+### Alcances matemáticos nuevos
+
+- **Ruta más corta:** Dijkstra; los pesos deben ser no negativos. Se admiten hasta 40 nodos por cálculo. El usuario elige si la red es dirigida.
+- **Optimización clásica:** funciones polinómicas de una variable de grado máximo 8. Se calculan derivadas y raíces numéricas en el intervalo ingresado; los extremos absolutos incluyen los límites del intervalo cerrado. Los puntos de inflexión requieren un cambio de signo de la segunda derivada.
+- **PERT / CPM:** el importador crea un borrador revisable desde texto o documentos; no convierte automáticamente cualquier enunciado narrativo y no sustituye la revisión de las predecesoras.
+
+### Estado de importación y OCR
+
+El texto seleccionable de PDF es la vía preferida. OCR para escaneos, tablas como imagen, fotografías y escritura manuscrita se etiqueta como **beta**. Las celdas y etiquetas deben revisarse antes de aplicar un modelo. La extracción es local cuando se utilizan los recursos servidos desde `vendor/`; al abrir con `file://` ciertas funciones recurren al CDN debido a restricciones de workers del navegador.
+
+### Pruebas nuevas
+
+- `tests/test_route_shortest.js` — 7 pruebas.
+- `tests/test_optimization_math.js` — 6 pruebas.
+- `tests/test_pert_import.js` — 5 pruebas.
+- `tests/test_transport_interpreter.js` — regresión del intérprete existente.
+- `tests/test_e2e_v800.py` — smoke tests portátiles de navegación, Ruta más corta, Optimización, importación de Transporte y PERT/CPM (requiere Playwright/Chromium).
+- `tests/README.md` — comandos para ejecutar la suite de lógica y la suite E2E.
+- `IMPLEMENTACION-v8.0.0.md` — registro de alcance, límites y estado de validación de esta entrega.
+
+## v7.11.1 — Mejoras de tolerancia de OCR y entrada por texto
+
+La preparación del OCR usa umbrales más conservadores para remover reglas largas y amplía imágenes pequeñas antes del reconocimiento. Cuando una imagen no produce una matriz revisable, se ofrece un segundo intento con segmentación alternativa. Estas medidas pueden ayudar con fotos de documentos impresos, pero no sustituyen la revisión de los datos ni prometen lectura fiable de manuscritos.
+
+El importador de Transporte también admite texto pegado o transcrito. El intérprete construye un modelo de revisión editable; el usuario comprueba costos, etiquetas, oferta, demanda y rutas prohibidas antes de «Aplicar al modelo».
+
+## v7.11.0 — Arquitectura de importación (PDF, OCR e imágenes)
+
+### Piezas
+| Archivo | Responsabilidad |
+|---|---|
+| `document-import.js` | Lector compartido (`window.IODocumentImport`): carga de PDF.js, texto nativo con geometría, detección de imágenes, OCR, fusión, bloques/ejercicios, UI de progreso. **No interpreta números.** |
+| `transport-import.js` | Intérprete puro de transporte (`window.IOTransportImport`, también `require` en Node): tabla por coordenadas, enunciado, rutas prohibidas, validación. |
+| `transport-import-ui.js` | Revisión editable de Transporte y llamada a `IOTransportAPI.applyImportedModel`. |
+| `simplex.js` | Intérprete Simplex existente. `ensurePdfJs`, `groupPdfItemsIntoLines` y `extractPdfText` ahora delegan en el lector (sin copia de la lógica). |
+| `transportation.js` | Nueva entrada controlada `applyImportedModel`; el resto (balanceo, métodos, desempates) sin cambios. |
+| `vendor/` | Copias locales de PDF.js, Tesseract.js, núcleo WASM y datos `spa`/`eng` (ver `vendor/LICENCIAS.md`). |
+
+### Lectura de un documento
+1. **Carga:** `vendor/` si la app se sirve por http(s); si no, jsDelivr con versión fija (PDF.js 4.10.38, Tesseract.js 5.1.1, core 5.1.1, datos 1.0.0).
+2. **Texto nativo:** cada página se agrupa en líneas (misma regla que usaba Simplex: tolerancia vertical 3.5, orden por X) y cada línea conserva sus palabras con caja (`x0,y0,x1,y1`).
+3. **Contenido gráfico:** se recorre la lista de operadores del PDF con la matriz de transformación para localizar imágenes (≥3 % de la página y ≥40 pt). Una región necesita OCR si contiene menos texto nativo que `max(4, 40·fracción)` palabras. Páginas sin texto ni imágenes se renderizan a baja resolución: con tinta → OCR de página; si no, «sin contenido legible».
+4. **OCR:** render a ~2400 px, escala de grises + estiramiento de contraste, **eliminación de líneas de rejilla** (sin ella una tabla se leía 3/23 celdas; con ella 23/23), PSM 6 para regiones y 3 para páginas completas; worker reutilizable, terminado tras 2 min de inactividad o al cancelar.
+5. **Fusión:** las palabras OCR que se solapan >35 % con palabras nativas se descartan; además se comparan líneas por contenido y posición.
+6. **Bloques:** mismos encabezados que `splitPdfExercises` (Ejercicio/Problema/Modelo), con páginas de origen, palabras dudosas y clasificación de tipo (transporte/simplex).
+
+### Intérprete de transporte
+Filas por línea; fila tabular = `[etiqueta…] + celdas`. Columnas por alineación horizontal respecto a la fila más ancha; cabecera por columnas; la última columna es oferta si el encabezado lo dice o la fila de demanda no tiene ese valor. Enteros pegados a una etiqueta (`Planta 1`) forman parte del nombre. Cifras fuera de la tabla (número de ejercicio, página, referencias) no se consideran. Ofertas/demandas pueden venir del enunciado («respectivamente» o por etiqueta) y se marcan «del enunciado». `X`, `✗`, `∞` = ruta prohibida; un guion es ambiguo y queda vacío; costo 0 es un costo válido. Nombres fuera de patrón (`C1, cl, c3`) se señalan y solo se sugiere la corrección.
+
+### Validación (tres categorías distintas)
+- **Lectura:** símbolo mal reconocido (`5O`), lectura dudosa, cifra de confianza muy baja sin confirmar, total impreso que no coincide con la suma.
+- **Incompleto:** celda/oferta/demanda vacía, nombres vacíos o repetidos, dimensiones fuera de 2–8.
+- **Inviable:** con las rutas prohibidas no se cubre la demanda (flujo máximo), o un destino con demanda tiene todas sus rutas prohibidas.
+Las comprobaciones matemáticas nunca rellenan datos que faltan.
+
+### Pruebas ejecutadas (v7.11.0)
+Ver `IMPLEMENTACION-v7.11.0.md` (sección «Pruebas ejecutadas»).
+
+## v7.10.3 — Corrección del balanceo de Transporte
+
+Se reemplaza el ajuste negativo de excedente por el balanceo estándar: si la demanda supera a la oferta, se incorpora una fuente ficticia con oferta igual al déficit; si la oferta supera a la demanda, se incorpora un cliente ficticio con demanda igual al excedente. Los costos de las rutas ficticias son cero. El modelo ajustado queda con oferta total igual a demanda total y restricciones de oferta/demanda como igualdades. La fila/columna ficticia se incluye en iteraciones, resultado, formulación y reporte. La importación de PDF no forma parte de esta versión.
+
+## v7.10.2 — Corrección de interfaz
+
+Se corrigió la distribución de las tarjetas de selección del método de transporte. Los radios ahora tienen tamaño fijo y no heredan el ancho, relleno y borde general de los campos de texto. El texto de cada opción conserva el ancho disponible. La corrección es visual; no modifica los algoritmos.
+
+La versión publicada actual es **8.0.0**. Los apartados que describen la incorporación inicial del módulo se mantienen como referencia histórica de v7.10.0.
+
+## v7.10.0 — Módulo de Modelos de transporte
+
+Se incorpora la captura editable de matrices, diagnóstico de balance, formulación automática, Esquina Noroeste y Costo Mínimo paso a paso, bloqueado de rutas con X, desempates manuales opcionales, proyectos JSON e informe imprimible. La nueva lógica vive en `transportation.js` y los estilos del módulo en `transportation.css`; Simplex y PERT / CPM conservan sus algoritmos.
+
 
 ## 1. ¿Qué es el programa?
 
-IO Solver es una aplicación web educativa para Investigación de Operaciones organizada en dos módulos independientes: Simplex y PERT / CPM. El módulo Simplex conserva el flujo de resolución y explicación de programación lineal desarrollado para el proyecto principal; el módulo PERT / CPM funciona como un complemento para la exposición, orientado a la planeación de proyectos y el análisis de redes de actividades.
+IO Solver es una aplicación web educativa para Investigación de Operaciones organizada en cinco módulos: Simplex, PERT / CPM, Modelos de transporte, Ruta más corta y Optimización clásica. Simplex resuelve programación lineal; PERT / CPM analiza redes de actividades; Transporte formula matrices y enseña soluciones iniciales; Ruta más corta aplica Dijkstra a redes con pesos no negativos; Optimización clásica analiza polinomios de una variable para estudiar máximos, mínimos y puntos de inflexión.
 
 El flujo general es:
 
@@ -70,7 +158,25 @@ Controla la experiencia común de IO Solver: launcher, selección entre módulos
 
 Contiene la lógica del módulo PERT / CPM: edición de actividades, validación de precedencias, cálculo de tiempos tempranos y tardíos, holguras, rutas críticas, red, Gantt, Modo PERT, análisis estadístico, modo aprendizaje, gestión de proyectos y generación de reportes.
 
+### transportation.js
+
+Contiene la lógica del módulo Modelos de transporte: captura y validación de matrices, cálculo de oferta y demanda, balanceo estándar mediante fuente o cliente ficticio, generación de la función objetivo y restricciones, método de la Esquina Noroeste, navegación entre iteraciones, cálculo del costo inicial, importación/exportación JSON e impresión del reporte.
+
+### transportation.css
+
+Define los componentes específicos del módulo Transporte utilizando los tokens de `style.css` y `liquid-glass.css`; no crea una identidad visual independiente. Incluye estilos para la tabla editable, matriz de asignaciones, valores de transición oferta/demanda, formulación y navegación por iteraciones.
+
 ---
+
+## Modelos de transporte — v7.10.0
+
+El módulo permite definir entre 2 y 8 fuentes y entre 2 y 8 destinos. Cada celda de la matriz contiene un costo unitario no negativo; cada fuente tiene una oferta y cada destino una demanda. Los nombres se pueden editar.
+
+El análisis genera una función objetivo de minimización, restricciones de oferta, restricciones de demanda y no negatividad. Si la demanda supera a la oferta, se agrega una fuente ficticia positiva cuya oferta equivale al déficit y cuyos costos son cero. Si la oferta supera a la demanda, se agrega un cliente ficticio cuya demanda equivale al excedente y cuyos costos desde todas las fuentes son cero. Así, tanto la oferta como la demanda del modelo ampliado quedan balanceadas; no se agregan filas/columnas con cantidades negativas y todas las restricciones de oferta/demanda son igualdades.
+
+El módulo de Transporte ofrece Esquina Noroeste y Costo Mínimo. Esquina Noroeste escoge la primera celda elegible en orden de matriz (que reproduce la esquina superior izquierda si no hay rutas prohibidas); Costo Mínimo selecciona la ruta permitida de menor costo unitario. Cada método asigna el mínimo entre oferta y demanda restantes, actualiza ambos valores, conserva la transición visual con el color de acento y calcula el costo de la solución inicial. En Costo Mínimo los empates se resuelven automáticamente con la primera celda empatada por orden de matriz, salvo que el usuario active “Elegir empates manualmente”, que solicita una elección en cada empate. Las rutas marcadas X no se consideran elegibles y se formulan como variables fijadas a cero. Ninguno de los dos métodos realiza una fase de optimización posterior.
+
+Los archivos de transporte se serializan como JSON con `type: "transportation"` y versión `8.0.0`. Guardan costos, oferta, demanda, etiquetas y la matriz booleana `forbidden` de rutas prohibidas. La carga valida las dimensiones y la forma de las matrices; los JSON anteriores, sin `forbidden`, se interpretan con todas las rutas permitidas. La importación automática de enunciados/PDF, incluso escaneados, se incorporó en v7.11.0 y se amplió en v7.11.1 y v8.0.0; no forma parte de v7.10.3.
 
 ## 3. Estado general del programa
 
@@ -831,7 +937,7 @@ El objetivo visual es acercar la experiencia a una aplicación moderna sin sacri
 
 Durante las versiones 2.x se realizaron iteraciones específicas de funcionalidad PERT / CPM, visualización, análisis estadístico, reportes y refinamiento Liquid Glass.
 
-La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **7.0.0**.
+La versión **3.0** fue el hito histórico que consolidó el conjunto inicial estable del proyecto: dos módulos independientes, gestión de apariencia, resolución y explicación del Simplex, y el módulo adicional PERT / CPM para demostración y exposición. La versión pública actual es **7.9.0**.
 
 
 ## 29. Comprobación final de la solución (v3.3)
@@ -933,6 +1039,53 @@ La interfaz incorpora una herramienta de auditoría que revisa la trazabilidad d
 
 La sección del verificador de soluciones mantiene separación vertical explícita respecto a las secciones del procedimiento para evitar superposición visual.
 
+
+## v7.9.0 — Saneamiento y consolidación visual
+
+Versión de limpieza: **sin módulos nuevos y sin cambios en la matemática de Simplex ni PERT/CPM.** Los resultados de ambos módulos son idénticos a v7.0.0 (comprobado comparando el texto generado). La v7.10.0 toma esta base visual consolidada e incorpora el módulo de Transporte.
+
+- **Liquid Glass con jerarquía:** el contenido (paneles, tablas, campos, resultados, gráficas) es sólido; el vidrio queda en la capa flotante (cabeceras y tarjetas de navegación, ajustes, controles). Se eliminó el vidrio sobre vidrio.
+- **Escala tipográfica:** 5 pasos (`--fs-xs/sm/base/lg/xl` = 12/14/16/20/28 px) más el título fluido de portada. Texto de lectura y controles en `--fs-sm`. Excepciones deliberadas: etiquetas dentro de SVG (gráfica y red PERT).
+- **Contraste de acentos:** variantes semánticas (`--accent-text`, `--accent-fill`, `--on-accent`). En modo oscuro el texto del botón primario pasa a casi negro (el acento es claro).
+- **Transición entre módulos:** fundido breve (View Transitions, ~0.18 s) con continuidad de cabecera; con *reduced motion* se reduce a un fundido de 0.12 s.
+- **Reduced motion:** el scroll suave de JS (`window.ioScrollBehavior()`) respeta la preferencia del sistema y el ajuste de la app; la política es "alternativa más suave" (fundidos y cambios de color cortos), no ausencia de feedback.
+- **liquid-glass.js:** corregido un bucle `requestAnimationFrame` duplicado en la animación de altura de la gráfica.
+- **Tokens:** `--input`→`--input-bg`, `--panel-2`→`--panel`, `--border-strong` definido.
+- **CSS:** 163 declaraciones sobrescritas y 39 reglas vacías/obsoletas eliminadas (verificado: estilos computados idénticos antes/después).
+- **Jerarquía de controles:** acción principal / secundaria / herramientas agrupadas en barra.
+- **Anchos:** `--w-app` (1180 px), `--w-read` (72ch); tablas, redes y gráficas conservan scroll horizontal propio.
+- **prefers-contrast: more:** bordes y texto secundario reforzados, superficies sólidas, foco de 3 px.
+- **Versionado:** pie de página, metadatos y exportaciones JSON de Simplex/PERT indican 7.9.0 (el formato de datos no cambia y la importación no depende de la versión).
+
+### Contraste de acentos (estilo Neón)
+
+Texto del botón sobre el relleno y texto de acento sobre superficies (objetivo AA ≥ 4.5:1; se usó margen para el vidrio).
+
+**Modo claro** (texto blanco sobre relleno; texto de acento ≥ 5.5:1 sobre `#fff`/`#f5f7fb`)
+
+| Acento | Relleno botón | Texto sobre relleno | Texto de acento | Texto de acento s/ superficies |
+|---|---|---|---|---|
+| blue | `#2563eb`→`#1d4ed8` | 5.17:1 / 6.7:1 | `#215cd5` | 5.51:1 |
+| teal | `#0f766e`→`#115e59` | 5.47:1 / 7.58:1 | `#0f7068` | 5.53:1 |
+| violet | `#7c3aed`→`#6d28d9` | 5.7:1 / 7.1:1 | `#7838e6` | 5.58:1 |
+| pink | `#cf236f`→`#be185d` | 5.09:1 / 6.04:1 | `#ba2162` | 5.62:1 |
+| magenta | `#b723ca`→`#a21caf` | 5.11:1 / 6.32:1 | `#a521b8` | 5.58:1 |
+| indigo | `#4f46e5`→`#4338ca` | 6.29:1 / 7.9:1 | `#4f46e5` | 5.86:1 |
+| green | `#507b0d`→`#48720f` | 5.02:1 / 5.69:1 | `#496d0d` | 5.63:1 |
+
+**Modo oscuro** (texto `#0b1220` sobre el acento claro; texto de acento ≥ 9:1 sobre `#0d1420`/`#172333`)
+
+| Acento | Relleno botón | Texto sobre relleno | Texto de acento | Texto de acento s/ superficies |
+|---|---|---|---|---|
+| blue | `#60a5fa`→`#93c5fd` | 7.36:1 / 10.38:1 | `#a0c7fa` | 9.09:1 |
+| teal | `#2dd4bf`→`#5eead4` | 10.06:1 / 12.66:1 | `#41d9c4` | 9.02:1 |
+| violet | `#a78bfa`→`#c4b5fd` | 6.88:1 / 10.14:1 | `#c9bbfa` | 9.04:1 |
+| pink | `#f472b6`→`#f9a8d4` | 7.07:1 / 10.32:1 | `#f4b0d2` | 9.05:1 |
+| magenta | `#e879f9`→`#f0abfc` | 7.61:1 / 10.64:1 | `#e8b0f9` | 9.07:1 |
+| indigo | `#818cf8`→`#a5b4fc` | 6.28:1 / 9.39:1 | `#bbc0f8` | 9.07:1 |
+| green | `#a3e635`→`#bef264` | 12.42:1 / 14.33:1 | `#a3e635` | 10.51:1 |
+
+El estilo Apple usa su propia paleta (texto ≥ 4.6:1 sobre `#f5f7fb`/`#1c1c1e`, botones con texto blanco ≥ 4.6:1).
 
 ## v7.0.0 — Inicio de la etapa PERT / CPM
 

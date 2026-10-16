@@ -1,0 +1,528 @@
+/* IO Solver — capa Liquid Glass (v2). Aditiva: se carga después de style.css.
+   Para revertir: quita el <link> de liquid-glass.css y el <script> de liquid-glass.js en index.html. */
+
+/* 1) Contraste: --muted de 4.44:1 a ≈6:1 sobre --bg (AA exige 4.5:1) */
+:root[data-theme="light"] { --muted: #556176; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --muted: #556176; } }
+
+/* 2) Material Liquid Glass: más transparente que "frosted", blur fuerte + saturación alta,
+      borde de luz asimétrico (más brillo arriba-izquierda), brillo interior y reflejo que sigue al puntero */
+:root {
+  --lg-blur: 30px; --lg-sat: 190%;
+  --lg-edge: inset 0 0 0 1px rgba(255,255,255,.38),
+             inset 0 1.5px 1px rgba(255,255,255,.75),
+             inset 1.5px 0 1px rgba(255,255,255,.28),
+             inset 0 -1.5px 1px rgba(255,255,255,.20),
+             inset 0 0 22px rgba(255,255,255,.08);
+  --lg-drop: 0 1px 2px rgba(15,23,42,.05), 0 8px 22px rgba(15,23,42,.07);
+  --lg-spec: radial-gradient(120% 90% at var(--lg-x,22%) var(--lg-y,0%), rgba(255,255,255,.40), rgba(255,255,255,0) 52%);
+  --lg-sheen: linear-gradient(135deg, rgba(255,255,255,.26), rgba(255,255,255,.04) 45%, rgba(255,255,255,.14));
+  --lg-ease: cubic-bezier(.32,.72,0,1);
+}
+:root[data-theme="dark"] { --lg-fill: rgba(30,41,59,.38); --lg-fill-strong: rgba(40,52,72,.50);
+  --lg-edge: inset 0 0 0 1px rgba(255,255,255,.14), inset 0 1.5px 1px rgba(255,255,255,.30),
+             inset 1.5px 0 1px rgba(255,255,255,.10), inset 0 -1.5px 1px rgba(255,255,255,.06), inset 0 0 22px rgba(255,255,255,.05);
+  --lg-drop: 0 1px 2px rgba(0,0,0,.30), 0 14px 36px rgba(0,0,0,.34);
+  --lg-spec: radial-gradient(120% 90% at var(--lg-x,22%) var(--lg-y,0%), rgba(255,255,255,.20), rgba(255,255,255,0) 52%);
+  --lg-sheen: linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02) 45%, rgba(255,255,255,.06)); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --lg-fill: rgba(30,41,59,.38); --lg-fill-strong: rgba(40,52,72,.50);
+  --lg-edge: inset 0 0 0 1px rgba(255,255,255,.14), inset 0 1.5px 1px rgba(255,255,255,.30),
+             inset 1.5px 0 1px rgba(255,255,255,.10), inset 0 -1.5px 1px rgba(255,255,255,.06), inset 0 0 22px rgba(255,255,255,.05);
+  --lg-drop: 0 1px 2px rgba(0,0,0,.30), 0 14px 36px rgba(0,0,0,.34);
+  --lg-spec: radial-gradient(120% 90% at var(--lg-x,22%) var(--lg-y,0%), rgba(255,255,255,.20), rgba(255,255,255,0) 52%);
+  --lg-sheen: linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02) 45%, rgba(255,255,255,.06)); } }
+
+/* Fondo ambiental con color de acento: es lo que el vidrio refracta */
+body::before { content:""; position:fixed; z-index:-1; pointer-events:none; }
+
+.launcher-hero, .hero, .module-card {
+  background: var(--lg-spec), var(--lg-sheen), var(--lg-fill);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.04);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.04);
+  box-shadow: var(--lg-edge), var(--lg-drop);
+  border-color: transparent;
+}
+.compact-control select, .btn.secondary, .badge, .source-pill, .icon-btn, .back-button {
+  background: var(--lg-spec), var(--lg-fill-strong);
+  -webkit-backdrop-filter: blur(22px) saturate(var(--lg-sat));
+  backdrop-filter: blur(22px) saturate(var(--lg-sat));
+  box-shadow: var(--lg-edge);
+  border-color: transparent;
+}
+/* 3) Movimiento: resorte corto 0.2s + respuesta al toque */
+.btn, .module-card, .back-button, .icon-btn, .badge, .source-pill {
+  transition: transform .2s var(--lg-ease), box-shadow .2s var(--lg-ease), background-color .2s var(--lg-ease);
+}
+.btn:active, .module-card:active, .icon-btn:active, .back-button:active { transform: scale(.97); }
+
+/* 4) Objetivos táctiles de 44×44 px (HIG) en pantallas táctiles */
+@media (pointer: coarse) {
+  button, select, .btn, .icon-btn, .back-button, .compact-control select,
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]) { min-height: 44px; }
+  .icon-btn { min-width: 44px; }
+  input[type="checkbox"], input[type="radio"] { min-width: 24px; min-height: 24px; }
+}
+
+/* 5) Accesibilidad */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  body::before { display: none; }
+  html:not(#_) :is(.launcher-hero, .hero, .module-card, .compact-control select, .btn, .badge, .source-pill, .icon-btn, .back-button, .settings-pop, .module-card-action, .module-icon) {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  html:not(#_) :is(.launcher-hero, .hero, .module-card, .compact-control select, .btn.secondary, .badge, .source-pill, .icon-btn, .back-button, .settings-pop) {
+    background: var(--panel); border-color: var(--border); }
+}
+
+/* ====== v3 ====== */
+/* A) Lente (refracción en los bordes). SOLO Chromium (Chrome/Opera GX/Edge): la clase html.lg-lens la pone un script
+      de detección en <head>. En cualquier otro navegador se queda el vidrio esmerilado de arriba (fallback). */
+html.lg-lens :is(.btn.secondary, .icon-btn, .back-button, .badge, .source-pill, .compact-control select) {
+  -webkit-backdrop-filter: url(#lg-lens-sm) blur(10px) saturate(var(--lg-sat));
+  backdrop-filter: url(#lg-lens-sm) blur(10px) saturate(var(--lg-sat));
+}
+
+/* B) Botones: primario = vidrio teñido con brillo superior; estados hover / presionado / foco / deshabilitado */
+.btn.primary {
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 40%),
+              linear-gradient(135deg, var(--accent-fill), var(--accent-fill-2));
+  border-color: rgba(255,255,255,.24);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 22%, transparent),
+              inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1.5px 1px rgba(255,255,255,.55), inset 0 -1.5px 1px rgba(0,0,0,.12);
+}
+.btn:hover { filter: brightness(1.05) saturate(1.05); }
+.btn.secondary:hover, .icon-btn:hover, .back-button:hover { background: var(--lg-spec), color-mix(in srgb, var(--lg-fill-strong) 80%, white); }
+.btn:focus-visible, .icon-btn:focus-visible, .back-button:focus-visible, .module-card:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px;
+}
+.btn:disabled, .btn[disabled], .icon-btn:disabled { opacity: .5; filter: saturate(.6); cursor: not-allowed; transform: none; }
+
+/* C) Campos: relleno translúcido con borde interior hundido (el vidrio se reserva a controles flotantes) */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select {
+  box-shadow: inset 0 1.5px 3px rgba(15,23,42,.10), inset 0 0 0 1px rgba(255,255,255,.28);
+  transition: box-shadow .2s var(--lg-ease), border-color .2s var(--lg-ease);
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent) !important;
+  box-shadow: inset 0 1.5px 3px rgba(15,23,42,.08), 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+  outline: none;
+}
+.file-drop { background: var(--lg-spec), var(--lg-fill); box-shadow: var(--lg-edge); border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* E) Deslizador: pulgar de vidrio en cápsula + pista con brillo */
+.graph-controls input[type="range"]::-webkit-slider-thumb {
+  width: 38px; height: 24px; margin-top: -8px; border-radius: 999px;
+  background: radial-gradient(120% 120% at 30% 15%, rgba(255,255,255,.95), rgba(255,255,255,.40) 55%, rgba(255,255,255,.55));
+  border: 1px solid rgba(255,255,255,.75);
+  -webkit-backdrop-filter: blur(3px) saturate(190%); backdrop-filter: blur(3px) saturate(190%);
+  box-shadow: 0 3px 10px rgba(15,23,42,.24), inset 0 1.5px 1px rgba(255,255,255,.95), inset 0 -2px 3px rgba(80,100,130,.14);
+}
+html.lg-lens .graph-controls input[type="range"]::-webkit-slider-thumb {
+  -webkit-backdrop-filter: url(#lg-lens-sm) blur(2px) saturate(190%); backdrop-filter: url(#lg-lens-sm) blur(2px) saturate(190%);
+}
+.graph-controls input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.06); }
+.graph-controls input[type="range"]:focus-visible::-webkit-slider-thumb { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+.graph-controls input[type="range"]::-moz-range-thumb { width: 38px; height: 24px; border-radius: 999px; }
+
+/* F) Reduced motion / sin transparencia: sin lente */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .switch-row input::after, .learn-toggle input::after, .graph-controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: #fff !important;
+  }
+}
+
+/* G) Fondo ambiental más vivo: el vidrio necesita color real detrás para que se note la refracción */
+:root { --lg-fill: rgba(255,255,255,.26); --lg-fill-strong: rgba(255,255,255,.40); }
+body::before {
+  inset: -6vmax; will-change: transform;
+  background:
+    radial-gradient(22vmax 22vmax at 24% 58%, color-mix(in srgb, var(--accent) 36%, transparent), transparent 70%),
+    radial-gradient(20vmax 20vmax at 74% 66%, rgba(168,85,247,.26), transparent 70%),
+    radial-gradient(18vmax 18vmax at 88% 22%, rgba(34,211,238,.26), transparent 70%),
+    radial-gradient(18vmax 18vmax at 10% 14%, rgba(244,114,182,.20), transparent 70%),
+    radial-gradient(16vmax 16vmax at 52% 40%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 70%);
+  animation: lg-drift 38s ease-in-out infinite alternate;
+}
+@keyframes lg-drift { from { transform: translate3d(-1.5vmax, -1vmax, 0) scale(1); } to { transform: translate3d(1.5vmax, 1.2vmax, 0) scale(1.05); } }
+
+/* H) Neutraliza el body::before decorativo previo de style.css (tamaño fijo y opacidad .34) */
+body::before { width: auto; height: auto; opacity: 1; filter: none; border-radius: 0; right: -6vmax; bottom: -6vmax; top: -6vmax; left: -6vmax; }
+
+/* ====== v4 ====== */
+:root { --lg-spring: cubic-bezier(.34,1.5,.64,1); }
+
+/* I) Jerarquía de títulos: h1 display > h2 sección (20px) > h3 tarjeta (16px) > etiqueta (14px). Estilo Apple: tracking negativo, balance de líneas */
+h1 { font-weight: 800; letter-spacing: -.028em; line-height: 1.06; text-wrap: balance; }
+h2 { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -.016em; line-height: 1.22; text-wrap: balance; }
+h3 { font-size: var(--fs-base); font-weight: 700; letter-spacing: -.008em; line-height: 1.3; text-wrap: balance; }
+.prep-head h3 { font-size: var(--fs-base); }          /* era 20px: un h3 más grande que su h2 */
+.diagnostic-head h2 { font-size: var(--fs-lg); }       /* era 16px: un h2 más chico que sus h3 */
+.module-card-title { font-weight: 800; letter-spacing: -.022em; line-height: 1.15; }
+.eyebrow { letter-spacing: .09em; }
+p, .module-card-text, .launcher-subtitle, .subtitle, small { text-wrap: pretty; }
+
+/* J) Switch estilo iOS 26: al presionar, el pulgar se agranda en una cápsula más transparente (sobresale de la pista);
+      al soltar viaja a su sitio y vuelve a encogerse con rebote */
+:is(.switch-row, .learn-toggle) > .switch-visual { overflow: visible; }
+:is(.switch-row, .learn-toggle) > .switch-visual::after {            /* brillo de la pista: sin translate para no desbordar */
+  transform: none !important; background-size: 240% 100%; background-position: 0% 50%;
+  transition: background-position .55s var(--lg-ease), opacity .3s ease;
+}
+:is(.switch-row, .learn-toggle) > input:checked + .switch-visual::after { transform: none !important; background-position: 100% 50%; }
+:is(.switch-row, .learn-toggle) > .switch-visual::before {
+  transition: width .36s var(--lg-spring), height .36s var(--lg-spring), transform .52s var(--lg-spring),
+              background-color .25s ease, box-shadow .3s ease, filter .24s ease;
+}
+:is(.switch-row, .learn-toggle) > input:active + .switch-visual::before {
+  width: 38px; height: 32px; transform: translateY(-50%);
+  background: radial-gradient(circle at 27% 21%, rgba(255,255,255,.72), transparent 32%),
+              linear-gradient(145deg, rgba(255,255,255,.28), rgba(255,255,255,.06) 55%, rgba(255,255,255,.14));
+  box-shadow: 0 7px 18px rgba(15,23,42,.22), inset 0 1.5px 1px rgba(255,255,255,.92), inset 0 -2px 4px rgba(40,60,90,.10), 0 0 0 1px rgba(255,255,255,.20);
+}
+:is(.switch-row, .learn-toggle) > input:checked:active + .switch-visual::before { transform: translate(2px, -50%); }
+/* K) Deslizador: al arrastrar el pulgar se agranda y se vuelve más transparente */
+.graph-controls input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.32, 1.16);
+  background: radial-gradient(120% 120% at 30% 15%, rgba(255,255,255,.80), rgba(255,255,255,.18) 58%, rgba(255,255,255,.30));
+  box-shadow: 0 8px 20px rgba(15,23,42,.24), inset 0 1.5px 1px rgba(255,255,255,.92), inset 0 -2px 3px rgba(80,100,130,.10);
+}
+.graph-controls input[type="range"]::-webkit-slider-thumb { transition: transform .45s var(--lg-spring), box-shadow .25s ease, background .25s ease; }
+
+/* L) Entradas: lo que aparece (se quita .hidden) entra con fundido + elevación corta, en cascada.
+      Solo se animan contenedores estáticos (no el contenido que se re-renderiza) para evitar parpadeos */
+@keyframes lg-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes lg-pop  { from { opacity: 0; transform: scale(.9); } }
+.badge:not(.hidden), .source-pill:not(.hidden) { animation: lg-pop .42s var(--lg-spring) backwards; }
+
+/* M) <details> con apertura animada (Chromium reciente; si no hay soporte, abre sin animación) */
+@supports selector(::details-content) {
+  :root { interpolate-size: allow-keywords; }
+  details::details-content { block-size: 0; overflow: clip; transition: block-size .38s var(--lg-ease), content-visibility .38s allow-discrete; }
+  details[open]::details-content { block-size: auto; }
+}
+
+/* N) Transiciones de estado en todo lo interactivo (antes cambiaba de golpe) */
+button, select, input, textarea, summary, a, label, tbody tr, .badge, .source-pill {
+  transition-property: background-color, border-color, color, box-shadow, opacity, filter;
+  transition-duration: .2s; transition-timing-function: var(--lg-ease);
+}
+.btn, .module-card, .back-button, .icon-btn, .badge, .source-pill {                /* conservan su transición con transform */
+  transition-property: transform, box-shadow, background-color, border-color, color, filter, opacity;
+  transition-duration: .2s; transition-timing-function: var(--lg-ease);
+}
+
+/* O) Movimiento reducido: sin animaciones de entrada ni rebotes */
+
+/* P) Evita el azul chillón del pulgar presionado al salirse de la pista (saturación menor) */
+:is(.switch-row, .learn-toggle) > input:active + .switch-visual::before { -webkit-backdrop-filter: blur(2px) saturate(130%); backdrop-filter: blur(2px) saturate(130%); }
+html.lg-lens :is(.switch-row, .learn-toggle) > input:active + .switch-visual::before { -webkit-backdrop-filter: url(#lg-lens-sm) blur(1px) saturate(130%); backdrop-filter: url(#lg-lens-sm) blur(1px) saturate(130%); }
+html.lg-lens :is(.switch-row, .learn-toggle) > .switch-visual::before { -webkit-backdrop-filter: url(#lg-lens-sm) blur(3px) saturate(140%); backdrop-filter: url(#lg-lens-sm) blur(3px) saturate(140%); }
+
+/* ====== v5 ====== */
+/* Q) Mostrar/ocultar con animación (entrada y salida): fundido + elevación + colapso de altura.
+      Requiere Chromium reciente (allow-discrete / @starting-style / interpolate-size); si no, cambia sin animar. */
+:is(.utility-panel, .graph-controls, #result-section, #graph-section, [data-learning-only],
+    #simplex-practice, #simplex-verifier, #simplex-audit, #simplex-delivery-section) {
+  animation: none;
+  transition: opacity .3s var(--lg-ease), transform .36s var(--lg-ease), height .4s var(--lg-ease), margin .4s var(--lg-ease),
+              padding .4s var(--lg-ease), border-width .4s var(--lg-ease), display .4s allow-discrete, overflow .4s allow-discrete;
+}
+:is(.utility-panel, .graph-controls, #result-section, #graph-section, [data-learning-only],
+    #simplex-practice, #simplex-verifier, #simplex-audit, #simplex-delivery-section):is(.hidden, .collapsed-learning) {
+  display: none; opacity: 0; transform: translateY(-8px) scale(.985); height: 0;
+  margin-block: 0; padding-block: 0; border-block-width: 0; overflow: clip;
+}
+@starting-style {
+  :is(.utility-panel, .graph-controls, #result-section, #graph-section, [data-learning-only],
+      #simplex-practice, #simplex-verifier, #simplex-audit, #simplex-delivery-section):not(.hidden):not(.collapsed-learning) {
+    opacity: 0; transform: translateY(-8px) scale(.985); height: 0; margin-block: 0; padding-block: 0; border-block-width: 0; overflow: clip;
+  }
+}
+/* Columnas/celdas que aparecen con el modo PERT */
+.pert-only { transition: opacity .35s var(--lg-ease), display .35s allow-discrete; }
+.pert-only.hidden { opacity: 0; }
+@starting-style { .pert-only:not(.hidden) { opacity: 0; } }
+
+/* R) Panel de ajustes (popover): vidrio grande con entrada/salida de resorte */
+:root:not(:has(.never)) { --lg-pop-w: 392px; }
+.settings-btn { flex: 0 0 auto; }
+.settings-pop {
+  position: fixed; inset: auto; top: var(--lg-pop-y, 72px); left: var(--lg-pop-x, 16px); margin: 0;
+  width: min(var(--lg-pop-w), calc(100vw - 24px)); overscroll-behavior: contain; border: 0; border-radius: var(--r-lg); color: var(--text);
+  background: var(--lg-spec), var(--lg-sheen), color-mix(in srgb, var(--panel) 66%, transparent);
+  -webkit-backdrop-filter: blur(34px) saturate(190%); backdrop-filter: blur(34px) saturate(190%);
+  box-shadow: var(--lg-edge), 0 20px 56px rgba(15,23,42,.22);
+  opacity: 0; transform: translateY(-10px) scale(.94); transform-origin: top right;
+  transition: opacity .22s ease, transform .46s var(--lg-spring), overlay .46s allow-discrete, display .46s allow-discrete;
+}
+.settings-pop:popover-open { opacity: 1; transform: none; }
+@starting-style { .settings-pop:popover-open { opacity: 0; transform: translateY(-10px) scale(.94); } }
+html.lg-lens .settings-pop { -webkit-backdrop-filter: url(#lg-lens) blur(22px) saturate(190%); backdrop-filter: url(#lg-lens) blur(22px) saturate(190%); }
+.settings-pop::backdrop { background: rgba(15,23,42,0); transition: background .35s ease, backdrop-filter .35s ease, overlay .35s allow-discrete, display .35s allow-discrete; }
+.settings-pop:popover-open::backdrop { background: rgba(15,23,42,.16); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+@starting-style { .settings-pop:popover-open::backdrop { background: rgba(15,23,42,0); } }
+@supports not selector(:popover-open) { .settings-pop { display: none; } .settings-pop.is-open { display: block; opacity: 1; transform: none; } }
+.settings-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.settings-head h2 { margin: 0; }
+.settings-group { padding: 12px 0 4px; border-top: 1px solid color-mix(in srgb, var(--text) 9%, transparent); display: grid; gap: 10px; }
+.settings-group:first-of-type { border-top: 0; }
+.settings-group h3 { margin: 0; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.settings-fields { display: grid; gap: 8px; justify-content: stretch; }
+.settings-fields .compact-control { grid-template-columns: 1fr 150px; font-size: var(--fs-sm); }
+.settings-pop .learn-toggle { margin: 0; padding: 10px 12px; }
+.settings-pop .learn-toggle small { font-size: var(--fs-xs); }
+.settings-pop .learn-toggle[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+.settings-foot { display: flex; justify-content: flex-end; padding-top: 10px; }
+.lg-field { display: grid; gap: 6px; }
+.lg-field-label { font-size: var(--fs-sm); font-weight: 600; }
+
+/* Control segmentado: indicador de vidrio que se desliza con resorte */
+.lg-seg { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--text) 8%, transparent); box-shadow: inset 0 1px 3px rgba(15,23,42,.14); --i: 0; }
+.lg-seg::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--n)); border-radius: inherit;
+  background: radial-gradient(120% 120% at 30% 10%, rgba(255,255,255,.95), rgba(255,255,255,.55) 60%), var(--lg-fill-strong);
+  box-shadow: 0 2px 8px rgba(15,23,42,.18), inset 0 1.5px 1px rgba(255,255,255,.95), inset 0 -1.5px 2px rgba(80,100,130,.10);
+  transform: translateX(calc(var(--i) * 100%)); transition: transform .5s var(--lg-spring); }
+:root[data-theme="dark"] .lg-seg::before { background: radial-gradient(120% 120% at 30% 10%, rgba(255,255,255,.30), rgba(255,255,255,.10) 60%), var(--lg-fill-strong); }
+.lg-seg label { position: relative; z-index: 1; display: grid; place-items: center; min-height: 34px; padding: 0 6px; font-size: var(--fs-sm); font-weight: 600;
+  color: var(--muted); cursor: pointer; border-radius: inherit; transition: color .25s ease; }
+.lg-seg label:has(input:checked) { color: var(--text); }
+.lg-seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.lg-seg label:has(input:focus-visible) { outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent); outline-offset: 1px; }
+.lg-seg:has(label:nth-child(2) input:checked) { --i: 1; }
+.lg-seg:has(label:nth-child(3) input:checked) { --i: 2; }
+.lg-seg:has(label:nth-child(4) input:checked) { --i: 3; }
+
+/* S) Opciones del panel de ajustes */
+:root[data-lg-glass="soft"]   { --lg-fill: color-mix(in srgb, var(--panel) 66%, transparent); --lg-fill-strong: color-mix(in srgb, var(--panel) 78%, transparent); --lg-blur: 16px; --lg-sat: 150%; }
+:root[data-lg-glass="strong"] { --lg-fill: color-mix(in srgb, var(--panel) 16%, transparent); --lg-fill-strong: color-mix(in srgb, var(--panel) 28%, transparent); --lg-blur: 38px; --lg-sat: 220%; }
+html.lg-lens :is(.launcher-hero, .hero, .module-card) {
+  -webkit-backdrop-filter: url(#lg-lens) blur(calc(var(--lg-blur) * .4)) saturate(var(--lg-sat)) brightness(1.04);
+  backdrop-filter: url(#lg-lens) blur(calc(var(--lg-blur) * .4)) saturate(var(--lg-sat)) brightness(1.04);
+}
+:root[data-lg-glass="solid"] :is(.launcher-hero, .hero, .module-card, .compact-control select, .btn.secondary, .badge, .source-pill, .icon-btn, .back-button, .settings-pop) {
+  background: var(--panel) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-color: var(--border);
+}
+:root[data-lg-glass="solid"] .lg-seg::before { background: var(--panel); }
+:root[data-lg-glass="solid"] body::before, :root[data-lg-bg="off"] body::before { display: none; }
+:root[data-lg-motion="reduced"] *, :root[data-lg-motion="reduced"] *::before, :root[data-lg-motion="reduced"] *::after { animation: none !important; }
+:root[data-lg-motion="off"] *, :root[data-lg-motion="off"] *::before, :root[data-lg-motion="off"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+/* ====== v6 · Estilo APPLE (paleta apple.com + HIG/skill): superficies sólidas, vidrio solo en la capa flotante ====== */
+:root[data-style="apple"] { --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif; }
+:root[data-style="apple"]:not([data-theme="dark"]) { --bg:#f5f5f7;--panel:#ffffff;--panel-soft:#f5f5f7;--input-bg:#ffffff;--code-bg:#f5f5f7;--text:#1d1d1f;--muted:#6e6e73;--border:#d2d2d7;--success:#20853e;--warning:#a96400;--danger:#d83328;--graph-grid:#e5e5ea;--graph-constraint:#6e6e73;--graph-solution:#20853e;--shadow:0 6px 22px rgba(0,0,0,.07);--viz-panel:#f5f5f7;--viz-card:#ffffff;--viz-border:#d2d2d7;--ap-card:0 0 0 .5px rgba(0,0,0,.05),0 4px 18px rgba(0,0,0,.05);--ap-green:#34c759;--ap-track-off:#e9e9ea;--lg-fill:rgba(255,255,255,.62);--lg-fill-strong:rgba(255,255,255,.72);--ap-float-edge:inset 0 0 0 .5px rgba(0,0,0,.08),0 2px 10px rgba(0,0,0,.10);--accent:#0066cc;--accent-strong:#00509f;--accent-soft:color-mix(in srgb, var(--accent) 9%, var(--panel));--ap-btn:#0071e3;--graph-feasible:color-mix(in srgb, var(--accent) 12%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"]:not([data-theme="dark"])[data-accent="teal"] { --accent:#1d7888;--accent-strong:#175e6a;--accent-soft:color-mix(in srgb, var(--accent) 9%, var(--panel));--ap-btn:#207f91;--graph-feasible:color-mix(in srgb, var(--accent) 12%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"]:not([data-theme="dark"])[data-accent="violet"] { --accent:#9d48c6;--accent-strong:#7a389a;--accent-soft:color-mix(in srgb, var(--accent) 9%, var(--panel));--ap-btn:#a34ace;--graph-feasible:color-mix(in srgb, var(--accent) 12%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"]:not([data-theme="dark"])[data-accent="pink"] { --accent:#d42447;--accent-strong:#a51c37;--accent-soft:color-mix(in srgb, var(--accent) 9%, var(--panel));--ap-btn:#dc2649;--graph-feasible:color-mix(in srgb, var(--accent) 12%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"]:not([data-theme="dark"])[data-accent="magenta"] { --accent:#b53caa;--accent-strong:#8d2f85;--accent-soft:color-mix(in srgb, var(--accent) 9%, var(--panel));--ap-btn:#bd3eb1;--graph-feasible:color-mix(in srgb, var(--accent) 12%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"]:not([data-theme="dark"])[data-accent="indigo"] { --accent:#5856d6;--accent-strong:#4543a7;--accent-soft:color-mix(in srgb, var(--accent) 9%, var(--panel));--ap-btn:#5856d6;--graph-feasible:color-mix(in srgb, var(--accent) 12%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"]:not([data-theme="dark"])[data-accent="green"] { --accent:#1e7f3c;--accent-strong:#17632f;--accent-soft:color-mix(in srgb, var(--accent) 9%, var(--panel));--ap-btn:#20853e;--graph-feasible:color-mix(in srgb, var(--accent) 12%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"][data-theme="dark"] { --bg:#000000;--panel:#1c1c1e;--panel-soft:#2c2c2e;--input-bg:#2c2c2e;--code-bg:#2c2c2e;--text:#f5f5f7;--muted:#a1a1a6;--border:#38383a;--success:#30d158;--warning:#ff9f0a;--danger:#ff6961;--graph-grid:#3a3a3c;--graph-constraint:#98989d;--graph-solution:#30d158;--shadow:0 10px 32px rgba(0,0,0,.5);--viz-panel:#2c2c2e;--viz-card:#1c1c1e;--viz-border:#38383a;--ap-card:0 0 0 .5px rgba(255,255,255,.06),0 8px 28px rgba(0,0,0,.45);--ap-green:#30d158;--ap-track-off:#39393d;--lg-fill:rgba(44,44,46,.55);--lg-fill-strong:rgba(58,58,60,.62);--ap-float-edge:inset 0 0 0 .5px rgba(255,255,255,.14),0 2px 10px rgba(0,0,0,.4);--accent:#41a3ff;--accent-strong:#5eb1ff;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#0071e3;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"][data-theme="dark"][data-accent="teal"] { --accent:#30b0c7;--accent-strong:#64c4d5;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#207f91;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"][data-theme="dark"][data-accent="violet"] { --accent:#c386e6;--accent-strong:#c98ae9;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#a34ace;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"][data-theme="dark"][data-accent="pink"] { --accent:#ff6f8a;--accent-strong:#ff6280;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#dc2649;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"][data-theme="dark"][data-accent="magenta"] { --accent:#d782cc;--accent-strong:#d784cf;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#bd3eb1;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"][data-theme="dark"][data-accent="indigo"] { --accent:#9896e6;--accent-strong:#9e9de8;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#5856d6;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+:root[data-style="apple"][data-theme="dark"][data-accent="green"] { --accent:#34c759;--accent-strong:#67d582;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#20853e;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+@media (prefers-color-scheme: dark) {
+  :root[data-style="apple"]:not([data-theme]) { --bg:#000000;--panel:#1c1c1e;--panel-soft:#2c2c2e;--input-bg:#2c2c2e;--code-bg:#2c2c2e;--text:#f5f5f7;--muted:#a1a1a6;--border:#38383a;--success:#30d158;--warning:#ff9f0a;--danger:#ff6961;--graph-grid:#3a3a3c;--graph-constraint:#98989d;--graph-solution:#30d158;--shadow:0 10px 32px rgba(0,0,0,.5);--viz-panel:#2c2c2e;--viz-card:#1c1c1e;--viz-border:#38383a;--ap-card:0 0 0 .5px rgba(255,255,255,.06),0 8px 28px rgba(0,0,0,.45);--ap-green:#30d158;--ap-track-off:#39393d;--lg-fill:rgba(44,44,46,.55);--lg-fill-strong:rgba(58,58,60,.62);--ap-float-edge:inset 0 0 0 .5px rgba(255,255,255,.14),0 2px 10px rgba(0,0,0,.4);--accent:#41a3ff;--accent-strong:#5eb1ff;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#0071e3;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+  :root[data-style="apple"]:not([data-theme])[data-accent="teal"] { --accent:#30b0c7;--accent-strong:#64c4d5;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#207f91;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+  :root[data-style="apple"]:not([data-theme])[data-accent="violet"] { --accent:#c386e6;--accent-strong:#c98ae9;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#a34ace;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+  :root[data-style="apple"]:not([data-theme])[data-accent="pink"] { --accent:#ff6f8a;--accent-strong:#ff6280;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#dc2649;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+  :root[data-style="apple"]:not([data-theme])[data-accent="magenta"] { --accent:#d782cc;--accent-strong:#d784cf;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#bd3eb1;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+  :root[data-style="apple"]:not([data-theme])[data-accent="indigo"] { --accent:#9896e6;--accent-strong:#9e9de8;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#5856d6;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+  :root[data-style="apple"]:not([data-theme])[data-accent="green"] { --accent:#34c759;--accent-strong:#67d582;--accent-soft:color-mix(in srgb, var(--accent) 18%, var(--panel));--ap-btn:#20853e;--graph-feasible:color-mix(in srgb, var(--accent) 16%, transparent);--graph-feasible-border:color-mix(in srgb, var(--accent) 42%, transparent); }
+}
+
+/* Reglas de componentes del estilo Apple. Prefijo AP = html[data-style="apple"]:not(#_) (gana a las reglas del estilo Neón). */
+html[data-style="apple"] body, html[data-style="apple"] button, html[data-style="apple"] input,
+html[data-style="apple"] select, html[data-style="apple"] textarea { font-family: var(--font-apple); }
+html[data-style="apple"]:not(#_) body::before { opacity: .2; }                       /* velo de color muy tenue (el vidrio necesita algo detrás) */
+html[data-style="apple"]:not(#_) :where(*) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-style="apple"]:not(#_) :is(.launcher-hero, .hero, .module-card) {
+  background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; border: 0;
+  box-shadow: var(--ap-card);
+}
+html[data-style="apple"]:not(#_) :is(.launcher-hero, .hero, .module-card)::before { display: none; }
+html[data-style="apple"]:not(#_) .eyebrow { text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
+/* Botones: primario sólido (azul Apple), secundario = relleno gris sin vidrio */
+html[data-style="apple"]:not(#_) .btn.primary { background: var(--ap-btn); color: #fff; border-color: transparent;
+  box-shadow: 0 1px 2px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18); }
+html[data-style="apple"]:not(#_) .btn.primary:hover { filter: brightness(1.07); }
+html[data-style="apple"]:not(#_) :is(.btn.secondary, .badge, .source-pill, .compact-control select) {
+  background: color-mix(in srgb, var(--text) 7%, transparent); border-color: transparent; box-shadow: none;
+}
+html[data-style="apple"]:not(#_) .btn.secondary:hover { background: color-mix(in srgb, var(--text) 12%, transparent); }
+/* Capa flotante = única que lleva vidrio */
+html[data-style="apple"]:not(#_) :is(.icon-btn, .back-button, .settings-btn) {
+  background: var(--lg-fill-strong); border: 0; box-shadow: var(--ap-float-edge);
+  -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%);
+}
+html[data-style="apple"]:not(#_) .settings-pop {
+  background: color-mix(in srgb, var(--panel) 70%, transparent); box-shadow: var(--ap-float-edge), 0 20px 56px rgba(0,0,0,.22);
+  -webkit-backdrop-filter: blur(40px) saturate(180%); backdrop-filter: blur(40px) saturate(180%);
+}
+html[data-style="apple"].lg-lens:not(#_) .settings-pop { -webkit-backdrop-filter: url(#lg-lens) blur(26px) saturate(180%); backdrop-filter: url(#lg-lens) blur(26px) saturate(180%); }
+/* Campos */
+html[data-style="apple"]:not(#_) :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select) {
+  background: var(--input-bg); border: 1px solid var(--border); box-shadow: none; border-radius: var(--r-sm);
+}
+html[data-style="apple"]:not(#_) :is(input, textarea, select):focus-visible {
+  border-color: var(--accent) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+/* Switch estilo iOS: verde al activar, gris al apagar */
+html[data-style="apple"]:not(#_) :is(.switch-row, .learn-toggle) > .switch-visual { background: var(--ap-track-off); border-color: transparent; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.06); }
+html[data-style="apple"]:not(#_) :is(.switch-row, .learn-toggle) > input:checked + .switch-visual { background: var(--ap-green); border-color: transparent; }
+html[data-style="apple"]:not(#_) :is(.switch-row, .learn-toggle) > .switch-visual::after { display: none; }
+html[data-style="apple"]:not(#_) .lg-seg { background: color-mix(in srgb, var(--text) 9%, transparent); }
+
+/* T) Panel de ajustes adaptable: cabecera y pie fijos, cuerpo con scroll; hoja inferior en pantallas chicas */
+.settings-pop { padding: 0; overflow: hidden; max-height: calc(100dvh - var(--lg-pop-y, 72px) - 12px); }
+.settings-pop:popover-open { display: flex; flex-direction: column; }
+.settings-pop.is-open { display: flex; flex-direction: column; }
+.settings-head { position: relative; flex: none; padding: 16px 18px 8px; margin: 0; }
+.settings-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 18px 8px; scrollbar-width: thin;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%); }
+.settings-foot { flex: none; padding: 10px 18px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid color-mix(in srgb, var(--text) 9%, transparent); }
+.lg-hint { margin: 0; font-size: var(--fs-xs); color: var(--muted); line-height: 1.4; }
+@media (max-width: 560px) {
+  .settings-pop { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: min(88dvh, 680px); border-radius: var(--r-lg) var(--r-lg) 0 0;
+    transform-origin: bottom center; transform: translateY(48px); }
+  .settings-pop:popover-open { transform: none; }
+  .settings-head { padding-top: 22px; }
+  .settings-head::before { content: ""; position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: color-mix(in srgb, var(--text) 24%, transparent); }
+}
+@media (max-width: 560px) { @starting-style { .settings-pop:popover-open { transform: translateY(48px); } } }
+
+/* U) Gráfica: entrada al activarse el switch (y salida con fantasma al desactivarlo) */
+@keyframes lg-graph-in  { from { opacity: 0; transform: translateY(14px) scale(.975); } }
+@keyframes lg-graph-out { to   { opacity: 0; transform: translateY(-8px) scale(.98); } }
+@keyframes lg-fade-in   { from { opacity: 0; } }
+@keyframes lg-dot-pop   { from { opacity: 0; transform: scale(0); } }
+#graph-output.lg-enter > * { animation: lg-graph-in .6s var(--lg-ease) backwards; }
+#graph-output.lg-enter .graph-feasible { animation: lg-fade-in .9s .2s ease backwards; }
+#graph-output.lg-enter :is(.graph-constraint, .graph-objective) { animation: lg-fade-in .7s .3s ease backwards; }
+#graph-output.lg-enter .graph-solution { transform-box: fill-box; transform-origin: center; animation: lg-dot-pop .55s .6s var(--lg-spring) backwards; }
+#graph-output .lg-ghost { animation: none; pointer-events: none; will-change: opacity, transform; }
+
+/* V) Correcciones: indicador del segmentado en oscuro del sistema (ambos estilos) y botón de pie más discreto */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lg-seg::before { background: radial-gradient(120% 120% at 30% 10%, rgba(255,255,255,.30), rgba(255,255,255,.10) 60%), var(--lg-fill-strong); }
+  html[data-style="apple"]:not([data-theme="light"]):not(#_) .lg-seg::before { background: #636366; }
+}
+html[data-style="apple"]:not(#_) .lg-seg::before { background: #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+html[data-style="apple"][data-theme="dark"]:not(#_) .lg-seg::before { background: #636366; }
+.settings-foot .btn { width: 100%; justify-content: center; font-size: var(--fs-sm); }
+
+/* ====== v7.9.0 · Acentos semánticos con contraste verificado ======
+ --accent         : identidad de marca (bordes, gráficos, rellenos decorativos; no texto pequeño)
+ --accent-text    : acento como TEXTO/icono sobre superficies (≥5.5:1 claro, ≥7:1 oscuro: margen para vidrio/velo de color)
+ --accent-fill    : relleno de controles con texto encima (botón primario, chips, números de paso)
+ --accent-fill-2  : segundo tono del degradado del relleno
+ --on-accent      : color del texto sobre --accent-fill (blanco en claro; casi negro en oscuro, donde el acento es claro) */
+:root { --accent-text:#215cd5; --accent-fill:#2563eb; --accent-fill-2:#1d4ed8; --on-accent:#ffffff; }
+:root[data-accent="teal"] { --accent-text:#0f7068; --accent-fill:#0f766e; --accent-fill-2:#115e59; --on-accent:#ffffff; }
+:root[data-accent="violet"] { --accent-text:#7838e6; --accent-fill:#7c3aed; --accent-fill-2:#6d28d9; --on-accent:#ffffff; }
+:root[data-accent="pink"] { --accent-text:#ba2162; --accent-fill:#cf236f; --accent-fill-2:#be185d; --on-accent:#ffffff; }
+:root[data-accent="magenta"] { --accent-text:#a521b8; --accent-fill:#b723ca; --accent-fill-2:#a21caf; --on-accent:#ffffff; }
+:root[data-accent="indigo"] { --accent-text:#4f46e5; --accent-fill:#4f46e5; --accent-fill-2:#4338ca; --on-accent:#ffffff; }
+:root[data-accent="green"] { --accent-text:#496d0d; --accent-fill:#507b0d; --accent-fill-2:#48720f; --on-accent:#ffffff; }
+:root[data-theme="dark"] { --accent-text:#a0c7fa; --accent-fill:#60a5fa; --accent-fill-2:#93c5fd; --on-accent:#0b1220; }
+:root[data-theme="dark"][data-accent="teal"] { --accent-text:#41d9c4; --accent-fill:#2dd4bf; --accent-fill-2:#5eead4; --on-accent:#0b1220; }
+:root[data-theme="dark"][data-accent="violet"] { --accent-text:#c9bbfa; --accent-fill:#a78bfa; --accent-fill-2:#c4b5fd; --on-accent:#0b1220; }
+:root[data-theme="dark"][data-accent="pink"] { --accent-text:#f4b0d2; --accent-fill:#f472b6; --accent-fill-2:#f9a8d4; --on-accent:#0b1220; }
+:root[data-theme="dark"][data-accent="magenta"] { --accent-text:#e8b0f9; --accent-fill:#e879f9; --accent-fill-2:#f0abfc; --on-accent:#0b1220; }
+:root[data-theme="dark"][data-accent="indigo"] { --accent-text:#bbc0f8; --accent-fill:#818cf8; --accent-fill-2:#a5b4fc; --on-accent:#0b1220; }
+:root[data-theme="dark"][data-accent="green"] { --accent-text:#a3e635; --accent-fill:#a3e635; --accent-fill-2:#bef264; --on-accent:#0b1220; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --accent-text:#a0c7fa; --accent-fill:#60a5fa; --accent-fill-2:#93c5fd; --on-accent:#0b1220; }
+  :root:not([data-theme])[data-accent="teal"] { --accent-text:#41d9c4; --accent-fill:#2dd4bf; --accent-fill-2:#5eead4; --on-accent:#0b1220; }
+  :root:not([data-theme])[data-accent="violet"] { --accent-text:#c9bbfa; --accent-fill:#a78bfa; --accent-fill-2:#c4b5fd; --on-accent:#0b1220; }
+  :root:not([data-theme])[data-accent="pink"] { --accent-text:#f4b0d2; --accent-fill:#f472b6; --accent-fill-2:#f9a8d4; --on-accent:#0b1220; }
+  :root:not([data-theme])[data-accent="magenta"] { --accent-text:#e8b0f9; --accent-fill:#e879f9; --accent-fill-2:#f0abfc; --on-accent:#0b1220; }
+  :root:not([data-theme])[data-accent="indigo"] { --accent-text:#bbc0f8; --accent-fill:#818cf8; --accent-fill-2:#a5b4fc; --on-accent:#0b1220; }
+  :root:not([data-theme])[data-accent="green"] { --accent-text:#a3e635; --accent-fill:#a3e635; --accent-fill-2:#bef264; --on-accent:#0b1220; }
+}
+html[data-style="apple"]:not(#_) { --accent-text: var(--accent); --accent-fill: var(--ap-btn); --accent-fill-2: var(--ap-btn); --on-accent: #ffffff; }
+
+/* ====== v7.9.0 · Consolidación del sistema visual ====== */
+:root {
+  /* Tipografía: la UI/controles usan la fuente del sistema; el contenido conserva la pila con Inter. */
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Anchos: lectura < aplicación; las visualizaciones técnicas (tablas, redes, gráficas) hacen scroll horizontal en su contenedor. */
+  --w-app: 1180px; --w-read: 72ch;
+  --shadow-content: 0 1px 2px rgba(15,23,42,.05), 0 6px 20px rgba(15,23,42,.06);
+}
+:root[data-theme="dark"] { --shadow-content: 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.30); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --shadow-content: 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.30); } }
+html[data-style="apple"] { --font-ui: var(--font-apple); }
+button, input, select, textarea { font-family: var(--font-ui); }
+:where(.panel > p, .section-title-row p, .domain-note p, .callout p) { max-width: var(--w-read); }
+
+/* A) Jerarquía del vidrio: el CONTENIDO (paneles, tablas, campos, resultados) es sólido y legible; el vidrio queda para la capa flotante
+      (cabeceras/tarjetas de navegación, ajustes, controles). Sin vidrio sobre vidrio. */
+html:not(#_) :is(.panel, .result-head.panel, .diagnostic-panel) { background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--shadow-content); }
+html:not(#_) :is(.table-wrap, .pert-network-wrap) { background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html:not(#_) th:not([class]) { background-color: var(--panel-soft); }
+html:not(#_) :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--input-bg) !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html:not(#_) .graph-controls { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* controles dentro de superficies de vidrio o de contenido: relleno translúcido sin segundo desenfoque */
+html:not(#_) :is(.launcher-hero, .hero, .module-card, .panel) :is(.btn, .icon-btn, .back-button, .badge, .source-pill, .module-icon, .module-card-action, select),
+html:not(#_) .btn.primary { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* B) Jerarquía de controles: acción principal (relleno de acento) > secundaria (tinte neutro) > herramienta (barra agrupada, sin fondo propio) */
+html:not(#_) .actions .btn.secondary, html:not(#_) .import-card .btn.secondary { background: color-mix(in srgb, var(--text) 6%, transparent); box-shadow: none; border-color: color-mix(in srgb, var(--text) 12%, transparent); }
+.project-file-actions, .result-action-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 3px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid color-mix(in srgb, var(--text) 9%, transparent); }
+html:not(#_) :is(.project-file-actions, .result-action-group) > .icon-btn { background: transparent; box-shadow: none; border-color: transparent;
+  -webkit-backdrop-filter: none; backdrop-filter: none; width: 36px; height: 36px; min-width: 36px; color: var(--muted); }
+html:not(#_) :is(.project-file-actions, .result-action-group) > .icon-btn:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+#simplex-copy-procedure-btn, #simplex-delivery-export-btn { margin-left: 8px; }                  /* separa herramientas de análisis | salida | entrega */
+html:not(#_) #simplex-delivery-clear-btn:hover, html:not(#_) .icon-btn.pert-remove:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+html:not(#_) .icon-btn.pert-remove { background: transparent; box-shadow: none; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--muted); }
+@media (pointer: coarse) { html:not(#_) :is(.project-file-actions, .result-action-group) > .icon-btn { width: 44px; height: 44px; min-width: 44px; } }
+
+/* C) prefers-contrast: more — mínimo y coherente: bordes y texto secundario más fuertes, superficies sólidas, foco más grueso */
+@media (prefers-contrast: more) {
+  :root:not(#_) { --border: color-mix(in srgb, var(--text) 62%, var(--bg)); --border-strong: var(--text); --muted: color-mix(in srgb, var(--text) 84%, var(--bg)); }
+  html:not(#_) :is(.panel, .table-wrap, .pert-network-wrap, .launcher-hero, .hero, .module-card, .settings-pop, .callout, .step-flow, .solution-card) { border: 1px solid var(--border); box-shadow: none; }
+  html:not(#_) :is(.btn.secondary, .icon-btn, .back-button, .badge, .source-pill, select, input, textarea) { border: 1.5px solid var(--border); }
+  html:not(#_) :is(.btn, .icon-btn, .back-button, .module-card, input, select, textarea, summary, a):focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  html:not(#_) .eyebrow, html:not(#_) .module-number { color: var(--text); }
+  .settings-pop::backdrop { background: rgba(0,0,0,.45); }
+}
+
+/* D) Movimiento reducido: alternativa más suave, NO ausencia de feedback. Sin desplazamientos, resortes ni animación espacial;
+      se conservan fundidos y cambios de color/opacidad cortos. Misma política si el usuario elige "Animaciones: Reducidas" en Ajustes. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes lg-rise { from { opacity: 0; } }
+  @keyframes lg-pop { from { opacity: 0; } }
+  @keyframes lg-graph-in { from { opacity: 0; } }
+  @keyframes lg-dot-pop { from { opacity: 0; } }
+  :root { --lg-spring: var(--lg-ease); }
+  *, *::before, *::after { animation-duration: .16s !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important;
+    transition-duration: .14s !important; transition-property: opacity, color, background-color, border-color, box-shadow, filter, outline-color !important; }
+  :root body::before { animation: none !important; }
+}
+
+:root[data-lg-motion="reduced"] { --lg-spring: var(--lg-ease); }
+:root[data-lg-motion="reduced"] *, :root[data-lg-motion="reduced"] *::before, :root[data-lg-motion="reduced"] *::after {
+  animation-duration: .16s !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important;
+  transition-duration: .14s !important; transition-property: opacity, color, background-color, border-color, box-shadow, filter, outline-color !important; }
+
+/* E) Transición entre módulos (View Transitions): fundido breve + la cabecera conserva continuidad espacial (se transforma de una a otra).
+      Sin desplazamientos grandes; no bloquea la interacción. Solo en navegadores con soporte; en los demás el cambio es inmediato. */
+html.lg-vt .launcher-hero, html.lg-vt .hero { view-transition-name: io-hero; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .18s; animation-timing-function: cubic-bezier(.32,.72,0,1); }
+::view-transition-group(io-hero) { animation-duration: .26s; animation-timing-function: cubic-bezier(.32,.72,0,1); }
+@media (prefers-reduced-motion: reduce) {
+  html.lg-vt .launcher-hero, html.lg-vt .hero { view-transition-name: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .12s; }
+}
+:root[data-lg-motion="reduced"].lg-vt .launcher-hero, :root[data-lg-motion="reduced"].lg-vt .hero { view-transition-name: none; }
+
+/* Apple: etiquetas muted sobre tinte gris con contraste AA */
+html[data-style="apple"]:not(#_) :is(.source-pill, .badge, .method-badge, .tag) { color: color-mix(in srgb, var(--text) 74%, var(--bg)); }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(root) { animation: none; } }
+
+/* Barras de herramientas: una sola fila (antes podían partirse en 2×2 dentro de la cápsula) */
+.project-file-actions, .result-action-group { flex-wrap: nowrap; flex: 0 0 auto; }
+@media (max-width: 780px) { .project-file-actions { width: auto; } }
