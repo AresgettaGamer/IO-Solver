@@ -1,8 +1,21 @@
-# IO Solver v8.0.0
+# IO Solver v8.1.0
 
 Herramienta educativa de **Investigación de Operaciones** para navegador, organizada en cinco módulos: **Simplex**, **PERT / CPM**, **Modelos de transporte**, **Ruta más corta** y **Optimización clásica**.
 
 Simplex conserva su motor de programación lineal; PERT / CPM planifica redes de actividades; Transporte construye matrices de distribución y enseña soluciones iniciales; Ruta más corta resuelve redes ponderadas con Dijkstra; Optimización clásica analiza funciones polinómicas de una variable para estudiar máximos, mínimos y puntos de inflexión.
+
+## v8.1.0 — Selector de ejercicios PERT/CPM
+
+- El lector de PERT/CPM busca encabezados explícitos «Ejercicio N» o «Problema N» en el texto extraído del documento.
+- Cuando reconoce dos o más bloques que contienen actividades interpretables, presenta una lista para elegir qué ejercicio revisar.
+- Seleccionar un ejercicio abre su tabla editable; no modifica el proyecto hasta que se pulse «Aplicar actividades» y no calcula automáticamente.
+- Si no se detectan varios bloques importables, se conserva el flujo anterior de borrador único.
+- No incorpora IA. La detección de títulos y la interpretación de actividades siguen siendo heurísticas; los encabezados no estándar o tablas cuya extracción pierda su estructura pueden requerir copiar y pegar el ejercicio.
+
+### Pruebas de v8.1.0
+
+- Se mantienen las pruebas de lógica de PERT/CPM (5), Ruta más corta (7), Optimización clásica (6) y Transporte (11).
+- Los PDFs de práctica aportados como casos de regresión contienen cinco ejercicios en un documento y seis en otro, incluyendo ambos formatos PERT y CPM.
 
 ## v8.0.0 — Cierre de la beta funcional principal
 

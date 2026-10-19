@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IO Solver</title>
   <meta name="application-name" content="IO Solver">
-  <meta name="version" content="8.0.0">
+  <meta name="version" content="8.1.0">
   <link rel="icon" href="favicon-io-solver.svg?v=5.1" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="liquid-glass.css">
@@ -109,7 +109,7 @@
     </button>
   </section>
   <p class="import-note launcher-beta-note"><strong>Importación de documentos:</strong> el texto seleccionable de PDF es la ruta preferida; el OCR para escaneos, fotografías y tablas sigue en beta. Revisa siempre los datos detectados antes de resolver.</p>
-  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 8.0.0</footer>
+  <footer class="launcher-footer">IO Solver · Herramienta Educativa · Versión 8.1.0</footer>
 </main>
 
 <main id="simplex-module" class="app-shell hidden">
@@ -302,7 +302,7 @@ Maximizar Z = 300 X1 + 150 X2
     </section>
     <section id="simplex-print-report" class="simplex-print-report hidden"></section>
     <footer class="app-footer">
-      <span>IO Solver · módulo Simplex · v8.0.0</span>
+      <span>IO Solver · módulo Simplex · v8.1.0</span>
       <span>Las interpretaciones automáticas siempre deben revisarse.</span>
     </footer>
   </main>
@@ -345,7 +345,7 @@ Maximizar Z = 300 X1 + 150 X2
     <div class="route-import-grid">
       <div class="import-card">
         <div class="import-kicker">PDF / imagen</div>
-        <label class="file-drop" for="pert-doc-input"><input id="pert-doc-input" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"><strong>Seleccionar PDF o imagen</strong><small>Se reutiliza el lector compartido. El PDF con texto suele ser más fiable; OCR beta para imágenes y escaneos.</small></label>
+        <label class="file-drop" for="pert-doc-input"><input id="pert-doc-input" type="file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"><strong>Seleccionar PDF o imagen</strong><small>Se reutiliza el lector compartido. Si el PDF contiene varios ejercicios, podrás elegir cuál revisar; el PDF con texto suele ser más fiable y el OCR sigue en beta.</small></label>
         <div id="pert-doc-status" class="message" aria-live="polite"></div>
       </div>
       <div class="import-card">
@@ -585,7 +585,7 @@ Demanda  30  40"></textarea>
       <div id="transport-final-table"></div>
     </section>
   </section>
-  <footer class="app-footer"><span>IO Solver · módulo Transporte · v8.0.0</span><span>Los métodos de transporte generan soluciones iniciales, no necesariamente óptimas.</span></footer>
+  <footer class="app-footer"><span>IO Solver · módulo Transporte · v8.1.0</span><span>Los métodos de transporte generan soluciones iniciales, no necesariamente óptimas.</span></footer>
 </main>
 
 <main id="route-shortest-module" class="app-shell hidden">
@@ -599,7 +599,7 @@ B D 5
 D E 2"></textarea></label><div class="route-actions"><button id="route-parse-text" class="btn secondary" type="button">Interpretar texto</button><button id="route-example" class="btn secondary" type="button">Cargar ejemplo</button></div></div></div></section>
   <section class="panel"><div class="section-title-row"><h2>1. Modelo de red</h2><p>Revisa las conexiones antes de calcular. No se permiten pesos negativos.</p></div><div class="table-wrap"><table class="route-edge-table"><thead><tr><th>Origen</th><th>Destino</th><th>Peso</th><th></th></tr></thead><tbody id="route-edge-body"></tbody></table></div><div class="route-actions"><button class="btn secondary" id="route-add-edge" type="button">Agregar conexión</button></div><div class="route-source-controls"><label for="route-source">Nodo de origen<select id="route-source"></select></label><label for="route-target">Nodo de destino<select id="route-target"></select></label><label class="learn-toggle" for="route-directed"><input id="route-directed" type="checkbox"><span class="switch-visual" aria-hidden="true"></span><span><strong>Red dirigida</strong><small>Desactivada: las conexiones se pueden recorrer en ambos sentidos.</small></span></label></div><div class="route-actions"><button id="route-solve" class="btn primary" type="button">Calcular ruta más corta</button></div><p id="route-status" class="message" aria-live="polite"></p></section>
   <section id="route-result" class="results hidden"><section class="panel"><div class="section-title-row"><h2>2. Resultado de la ruta</h2><p id="route-summary"></p></div></section><section class="panel"><div class="section-title-row"><h2>3. Red visual</h2><p>La ruta de menor costo se resalta en el diagrama.</p></div><div id="route-graph"></div></section><section class="panel"><div class="section-title-row"><h2>4. Procedimiento de Dijkstra</h2><p>La tabla registra la distancia provisional desde el origen y el predecesor de cada nodo en cada paso.</p></div><div id="route-steps"></div></section></section>
-  <footer class="app-footer"><span>IO Solver · Ruta más corta · v8.0.0</span><span>Algoritmo de Dijkstra · pesos no negativos</span></footer>
+  <footer class="app-footer"><span>IO Solver · Ruta más corta · v8.1.0</span><span>Algoritmo de Dijkstra · pesos no negativos</span></footer>
 </main>
 
 <main id="optimization-module" class="app-shell hidden">
@@ -608,7 +608,7 @@ D E 2"></textarea></label><div class="route-actions"><button id="route-parse-tex
   <section class="panel"><div class="section-title-row"><h2>1. Función que se analizará</h2><p>Usa x y operadores +, −, *, /, ^ y paréntesis. Se aceptan formas como 2x y (x+1)(x−1).</p></div><div class="optimization-input-grid"><label for="optimization-expression">Función f(x)<input id="optimization-expression" class="optimization-function-input" type="text" value="x^3 - 6x^2 + 9x + 1" placeholder="x^3 - 6x^2 + 9x + 1"></label><label for="optimization-min">Límite inferior<input id="optimization-min" type="number" step="any" value="0"></label><label for="optimization-max">Límite superior<input id="optimization-max" type="number" step="any" value="5"></label></div><div class="route-actions"><button id="optimization-analyze" class="btn primary" type="button">Analizar función</button><button id="optimization-example" class="btn secondary" type="button">Cargar ejemplo</button></div><p id="optimization-status" class="message" aria-live="polite">Escribe o revisa la función y pulsa «Analizar función».</p></section>
   <section class="panel"><div class="section-title-row"><h2>2. Herramientas de análisis</h2><p>Selecciona qué parte del procedimiento quieres estudiar.</p></div><div class="optimization-mode-picker" role="group" aria-label="Vista del análisis"><button class="optimization-mode-btn" data-optimization-view="analysis" aria-pressed="true" type="button">Análisis de función</button><button class="optimization-mode-btn" data-optimization-view="maxmin" aria-pressed="false" type="button">Máximos y mínimos</button><button class="optimization-mode-btn" data-optimization-view="inflection" aria-pressed="false" type="button">Puntos de inflexión</button><button class="optimization-mode-btn" data-optimization-view="optimization" aria-pressed="false" type="button">Optimización clásica</button></div><label for="optimization-objective">Objetivo del problema de optimización<select id="optimization-objective"><option value="max">Maximizar f(x)</option><option value="min">Minimizar f(x)</option></select></label><div id="optimization-output" class="optimization-output"><p class="muted">Los resultados aparecerán aquí tras analizar la función.</p></div></section>
   <section class="panel"><h2>Alcance y precisión</h2><p>La versión 8.0.0 admite polinomios de una variable de grado máximo 8 y calcula raíces numéricas dentro del intervalo indicado. No convierte automáticamente enunciados narrativos en funciones ni resuelve aún optimización multivariable, funciones no polinómicas o multiplicadores de Lagrange. Usa los procedimientos de tu clase como referencia y revisa resultados próximos o repetidos.</p></section>
-  <footer class="app-footer"><span>IO Solver · Optimización clásica · v8.0.0</span><span>Funciones polinómicas · cálculo numérico educativo</span></footer>
+  <footer class="app-footer"><span>IO Solver · Optimización clásica · v8.1.0</span><span>Funciones polinómicas · cálculo numérico educativo</span></footer>
 </main>
 
 <script src="io-services.js"></script>

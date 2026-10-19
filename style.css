@@ -2943,3 +2943,11 @@ textarea::placeholder, input::placeholder { color: var(--muted); opacity: .9; }
   .practice-mode-row { align-items:flex-start; flex-direction:column; }
   .practice-score-grid { grid-template-columns:1fr; }
 }
+
+/* IO Solver v8.1.0 — selector de ejercicios PERT/CPM detectados en un documento */
+.pert-exercise-choice-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin:14px 0}
+.pert-exercise-choice{display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:100%;min-height:76px;padding:14px 16px;border:1px solid var(--line,rgba(127,127,127,.28));border-radius:14px;background:var(--surface-2,rgba(127,127,127,.07));color:var(--text,inherit);text-align:left;cursor:pointer;transition:border-color .15s ease,transform .15s ease,background .15s ease}
+.pert-exercise-choice:hover,.pert-exercise-choice:focus-visible{border-color:var(--accent,#4385f5);background:var(--surface-3,rgba(127,127,127,.12));outline:none}
+.pert-exercise-choice:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#4385f5) 25%,transparent)}
+.pert-exercise-choice strong{font-size:.98rem;line-height:1.35}
+.pert-exercise-choice span{font-size:.86rem;color:var(--muted,#777);line-height:1.4}

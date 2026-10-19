@@ -517,7 +517,7 @@ function getPertProjectData() {
     app: 'IO Solver',
     module: 'PERT',
     type: 'pert-cpm',
-    version: '8.0.0',
+    version: '8.1.0',
     projectName: String(pertEl.projectName?.value || '').trim() || 'Mi proyecto PERT / CPM',
     mode: Boolean(pertState.mode),
     learning: Boolean(pertState.learning),
@@ -817,7 +817,7 @@ pertEl.loadBtn?.addEventListener('click', () => pertEl.fileInput?.click());
 pertEl.fileInput?.addEventListener('change', e => loadPertProject(e.target.files?.[0]));
 pertEl.exportReport?.addEventListener('click', exportPertReport);
 
-// Importación compartida de actividades desde texto, PDF o imagen (v8.0.0).
+// Importación de actividades desde texto, PDF o imagen con selector de ejercicios (v8.1.0).
 (function initPertDocumentImport() {
   const input = document.getElementById('pert-doc-input');
   const textArea = document.getElementById('pert-import-text');
@@ -839,9 +839,36 @@ pertEl.exportReport?.addEventListener('click', exportPertReport);
     preview.innerHTML = `<div class="import-review"><div class="section-title-row"><h3>Revisión de actividades — ${escape(sourceLabel)}</h3><p>${parsed.rows.length} actividad(es) · ${pertCols?'incluye estimaciones PERT':'duración fija CPM'}</p></div>${warning}<div class="table-wrap"><table class="pert-import-preview">${head}<tbody>${body}</tbody></table></div><div class="pert-import-actions"><button type="button" class="btn primary" id="pert-import-apply">Aplicar actividades</button><button type="button" class="btn secondary" id="pert-import-cancel">Descartar</button></div></div>`;
     preview.classList.remove('hidden');
   }
+  function detectExerciseSections(source) {
+    const text = String(source || '').replace(/\r/g, '');
+    // Títulos explícitos como «Ejercicio 1. ...» / «Problema 2: ...» delimitan ejercicios.
+    const re = /^\s*((?:Ejercicio|Problema)\s+(?:n[úu]m(?:ero)?\.?\s*)?\d+\s*[.):-]?[^\n]*)\s*$/gim;
+    const matches = [...text.matchAll(re)];
+    if (matches.length < 2) return [];
+    return matches.map((m, i) => ({ title: m[1].trim(), text: text.slice(m.index + m[0].length, i + 1 < matches.length ? matches[i + 1].index : text.length).trim(), index: i }));
+  }
   function parseAndPreview(source, label) {
-    try { const parsed = parseActivityText(source); renderPreview(parsed, label); status.textContent = `Lectura preparada desde ${label}. Revisa las actividades y sus relaciones; aún no se aplicaron.`; status.className = 'message ok'; }
-    catch (error) { candidate = null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent = error.message || 'No se pudo interpretar el texto de actividades.'; status.className = 'message error'; }
+    try {
+      const sections = detectExerciseSections(source);
+      const parsedSections = [];
+      if (sections.length > 1) {
+        for (const section of sections) {
+          try { parsedSections.push({ ...section, parsed: parseActivityText(section.text) }); }
+          catch (_) { /* títulos sin tabla de actividades no son ejercicios importables */ }
+        }
+      }
+      if (parsedSections.length > 1) {
+        candidate = null;
+        preview.classList.remove('hidden');
+        preview.innerHTML = `<div class="import-review"><div class="section-title-row"><h3>Ejercicios detectados — ${escape(label)}</h3><p>${parsedSections.length} ejercicios con actividades reconocibles. Elige uno para revisarlo.</p></div><div class="pert-exercise-choice-list">${parsedSections.map((item, i) => `<button type="button" class="pert-exercise-choice" data-exercise-index="${i}"><strong>${escape(item.title)}</strong><span>${item.parsed.rows.length} actividades · ${item.parsed.hasPertEstimates ? 'PERT (estimaciones O/M/P)' : 'CPM / duración fija'}</span></button>`).join('')}</div><button type="button" class="btn secondary" id="pert-import-cancel">Cancelar</button></div>`;
+        preview._pertDetectedSections = parsedSections;
+        status.textContent = `Se detectaron ${parsedSections.length} ejercicios en el documento. Selecciona cuál quieres importar; el proyecto no ha cambiado.`;
+        status.className = 'message ok';
+        return;
+      }
+      const parsed = parseActivityText(source); renderPreview(parsed, label);
+      status.textContent = `Lectura preparada desde ${label}. Revisa las actividades y sus relaciones; aún no se aplicaron.`; status.className = 'message ok';
+    } catch (error) { candidate = null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent = error.message || 'No se pudo interpretar el texto de actividades.'; status.className = 'message error'; }
   }
   interpretBtn.addEventListener('click', () => parseAndPreview(textArea.value, 'texto pegado'));
   input.addEventListener('change', async () => {
@@ -859,7 +886,17 @@ pertEl.exportReport?.addEventListener('click', exportPertReport);
     finally { input.value = ''; }
   });
   preview.addEventListener('click', event => {
-    if (event.target.closest('#pert-import-cancel')) { candidate=null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent='Borrador descartado. El proyecto actual no cambió.'; status.className='message'; return; }
+    const choice = event.target.closest('[data-exercise-index]');
+    if (choice) {
+      const sections = preview._pertDetectedSections || [];
+      const selected = sections[Number(choice.dataset.exerciseIndex)];
+      if (selected) renderPreview(selected.parsed, `${selected.title} · ${input.files?.[0]?.name || 'documento'}`);
+      preview._pertDetectedSections = null;
+      status.textContent = 'Ejercicio seleccionado. Revisa los datos antes de aplicarlos; todavía no se ha modificado el proyecto.';
+      status.className = 'message ok';
+      return;
+    }
+    if (event.target.closest('#pert-import-cancel')) { candidate=null; preview._pertDetectedSections=null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent='Borrador descartado. El proyecto actual no cambió.'; status.className='message'; return; }
     if (!event.target.closest('#pert-import-apply')) return;
     try {
       const pertCols = Boolean(candidate?.hasPertEstimates); if (!candidate) throw new Error('No hay actividades para aplicar.');
