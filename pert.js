@@ -517,7 +517,7 @@ function getPertProjectData() {
     app: 'IO Solver',
     module: 'PERT',
     type: 'pert-cpm',
-    version: '8.1.0',
+    version: '8.1.1',
     projectName: String(pertEl.projectName?.value || '').trim() || 'Mi proyecto PERT / CPM',
     mode: Boolean(pertState.mode),
     learning: Boolean(pertState.learning),
@@ -817,7 +817,7 @@ pertEl.loadBtn?.addEventListener('click', () => pertEl.fileInput?.click());
 pertEl.fileInput?.addEventListener('change', e => loadPertProject(e.target.files?.[0]));
 pertEl.exportReport?.addEventListener('click', exportPertReport);
 
-// Importación de actividades desde texto, PDF o imagen con selector de ejercicios (v8.1.0).
+// Importación de actividades desde texto, PDF o imagen con selector de ejercicios (v8.1.1).
 (function initPertDocumentImport() {
   const input = document.getElementById('pert-doc-input');
   const textArea = document.getElementById('pert-import-text');

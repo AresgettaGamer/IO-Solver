@@ -21,4 +21,12 @@ test('rechaza tablas con menos de dos actividades o nombres repetidos',()=>{
  assert.throws(()=>parseActivityText('A | — | 2'),/al menos dos actividades/);
  assert.throws(()=>parseActivityText('A | — | 2\nA | — | 3'),/repetido/);
 });
-console.log(`\n${count}/5 pruebas Importación PERT/CPM aprobadas.`);
+test('separa descripción de actividad y predecesoras en filas extraídas de PDF',()=>{
+ const r=parseActivityText('Actividad | Descripción | Predecesoras | Duración\nA | Elegir el tema | — | 2\nB | Investigar información | A | 3\nC | Elaborar diapositivas | B | 4\nD | Preparar la exposición | C | 2');
+ assert.equal(r.rows.length,4); assert.deepEqual(r.rows.map(x=>x.pred),['','A','B','C']); assert.deepEqual(r.warnings,[]);
+});
+test('interpreta filas sin separadores con descripción y predecesora final',()=>{
+ const r=parseActivityText('A Elegir el tema — 2\nB Investigar información A 3\nC Elaborar diapositivas B 4\nD Preparar la exposición C 2');
+ assert.equal(r.rows.length,4); assert.deepEqual(r.rows.map(x=>x.pred),['','A','B','C']); assert.deepEqual(r.warnings,[]);
+});
+console.log(`\n${count}/7 pruebas Importación PERT/CPM aprobadas.`);
