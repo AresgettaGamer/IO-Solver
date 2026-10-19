@@ -10,6 +10,9 @@
 (function initTransportImport(root) {
   const MIN_DIM = 2, MAX_DIM = 8, LOW = 75, VERY_LOW = 55;
   const NUM = /^\d+(?:[.,]\d+)?$/, THOUSANDS = /^\d{1,3}(?:,\d{3})+$/;
+  const VALUE_UNIT = /^(?:TB(?:\/d[ií]a)?|GB|MB|KB|hrs?|h|horas?(?:-m[aá]quina)?|km|m|min(?:utos?)?|s|seg(?:undos?)?|unidades?|u|kg|toneladas?|\(total\)|total)$/i;
+  const VALUE_CURRENCY = /^[\$€£]$/;
+  const cleanNumericText = raw => String(raw ?? '').trim().replace(/^[\$€£]\s*/, '').replace(/\s*\(total\)$/i, '').replace(/\s*(?:TB(?:\/d[ií]a)?|GB|MB|KB|hrs?|h|horas?(?:-m[aá]quina)?|km|m|min(?:utos?)?|s|seg(?:undos?)?|unidades?|u|kg|toneladas?|total)$/i, '').trim();
   const FORBID = /^[xX✗✕×∞]$/, DASH = /^[-–—]$/;
   const NUMBERISH = /^(?=.*\d)[\dOoIl|SsBbZz.,]{1,7}$/;
   const SUPPLY_HEAD = /^(oferta|ofer\.?|disponibilidad|disponible|producci[oó]n|capacidad|existencias?|suministro)s?$/i;
@@ -21,14 +24,16 @@
   const OCR_DIGIT = { O: '0', o: '0', I: '1', l: '1', '|': '1', S: '5', s: '5', B: '8', b: '6', Z: '2', z: '2' };
 
   function classify(text) {
-    if (NUM.test(text) || THOUSANDS.test(text)) return 'num';
+    const numeric = cleanNumericText(text);
+    if (NUM.test(numeric) || THOUSANDS.test(numeric)) return 'num';
     if (FORBID.test(text)) return 'forbid';
     if (DASH.test(text)) return 'dash';
-    if (NUMBERISH.test(text)) return 'numberish';
+    // Etiquetas frecuentes como S1, B2 o C3 no deben confundirse con cifras OCR.
+    if (NUMBERISH.test(numeric) && /^\d/.test(numeric)) return 'numberish';
     return 'text';
   }
   function parseNumber(raw) {
-    const t = String(raw ?? '').trim(); if (!t) return null;
+    const t = cleanNumericText(raw); if (!t) return null;
     if (THOUSANDS.test(t)) return Number(t.replace(/,/g, ''));
     if (NUM.test(t)) return Number(t.replace(',', '.'));
     return null;
@@ -45,8 +50,41 @@
         return { text, tokens, x0: 0, x1: text.length * 7, y0: i * 20, y1: i * 20 + 14 };
       });
     }
-    return lines.map((l, idx) => ({ idx, text: String(l.text || '').trim(), page: l.page, y: (l.y0 + l.y1) / 2,
-      tokens: (l.tokens || []).map(t => ({ ...t, cx: (t.x0 + t.x1) / 2, kind: classify(t.text) })) })).filter(r => r.tokens.length);
+    return lines.map((l, idx) => {
+      const rawTokens = (l.tokens || []).map(t => ({ ...t, text: String(t.text ?? '').trim() })).filter(t => t.text).sort((a, b) => a.x0 - b.x0);
+      const merged = [];
+      for (let i = 0; i < rawTokens.length; i += 1) {
+        const t = rawTokens[i], next = rawTokens[i + 1], prev = merged[merged.length - 1];
+        // Algunos extractores separan el símbolo monetario y la cifra en tokens distintos.
+        if (VALUE_CURRENCY.test(t.text) && next && (NUM.test(cleanNumericText(next.text)) || NUMBERISH.test(cleanNumericText(next.text)))) {
+          merged.push({ ...t, text: t.text + next.text, x1: next.x1, x: t.x, cx: ((t.x0 ?? 0) + (next.x1 ?? next.x0 ?? 0)) / 2 }); i += 1; continue;
+        }
+        // Une unidades y la marca «(Total)» con el número anterior; no se pierden al validar la celda.
+        if (prev && VALUE_UNIT.test(t.text) && (NUM.test(cleanNumericText(prev.text)) || NUMBERISH.test(cleanNumericText(prev.text)))) {
+          prev.text = `${prev.text} ${t.text}`; prev.x1 = t.x1; prev.cx = ((prev.x0 ?? 0) + (t.x1 ?? t.x0 ?? 0)) / 2; continue;
+        }
+        merged.push({ ...t });
+      }
+      return { idx, text: String(l.text || '').trim(), page: l.page, y: ((l.y0 ?? 0) + (l.y1 ?? 0)) / 2,
+        tokens: merged.map(t => ({ ...t, cx: Number.isFinite(t.cx) ? t.cx : ((t.x0 ?? 0) + (t.x1 ?? 0)) / 2, kind: classify(t.text) })) };
+    }).filter(r => r.tokens.length).reduce((out, row, i, all) => {
+      // Algunas tablas parten el nombre de una fuente en dos renglones (p. ej. «DC2 (EE.UU.» / «Oeste)»).
+      // Reunimos solo continuaciones breves y parentizadas entre dos filas de la misma matriz.
+      const hasCells = r => r.tokens.some(t => isCell(t));
+      const wrapped = /^\([^()]{1,32}\)$/.test(row.text) || /^[A-Za-zÁÉÍÓÚÑáéíóúñ-]{2,20}\)$/.test(row.text);
+      if (wrapped && out.length && hasCells(out[out.length - 1]) && i + 1 < all.length && hasCells(all[i + 1]) &&
+          /\([^)]*$/.test(out[out.length - 1].text)) {
+        const prev = out[out.length - 1];
+        const cellAt = prev.tokens.findIndex(t => isCell(t));
+        const lastLabel = prev.tokens.slice(0, cellAt).filter(t => !isCell(t)).slice(-1)[0];
+        const lx0 = lastLabel ? lastLabel.x1 + 1 : Math.max(0, row.tokens[0].x0);
+        const labelTail = { ...row.tokens[0], x0: lx0, x1: lx0 + String(row.tokens[0].text).length * 7, kind: 'text', cx: lx0 + String(row.tokens[0].text).length * 3.5 };
+        if (cellAt >= 0) { prev.tokens.splice(cellAt, 0, labelTail); prev.tokens.sort((a, b) => a.x0 - b.x0); }
+        else prev.tokens.push(labelTail);
+        prev.text = `${prev.text} ${row.text}`; return out;
+      }
+      out.push(row); return out;
+    }, []);
   }
   const isCell = t => t.kind === 'num' || t.kind === 'forbid' || t.kind === 'dash' || t.kind === 'numberish';
   /* Fila tabular = [etiqueta…] + celdas, sin texto después de la primera celda. */
@@ -90,8 +128,8 @@
     const ref = rows.reduce((best, x) => (x.s.cells.length > best.s.cells.length ? x : best), rows[0]);
     return ref.s.cells.map(t => t.cx);
   }
-  function assign(tokens, centers, tolFactor = 0.6, alignRight = false) {
-    if (tokens.length && tokens.every(t => t.src === 'text')) {      // texto plano sin geometría fiable: asignación posicional
+  function assign(tokens, centers, tolFactor = 0.6, alignRight = false, forceGeometry = false) {
+    if (!forceGeometry && tokens.length && tokens.every(t => t.src === 'text')) {      // texto plano sin geometría fiable: asignación posicional
       const out = new Array(centers.length).fill(null); const extra = [];
       const slice = alignRight && tokens.length > centers.length ? tokens.slice(tokens.length - centers.length) : tokens;
       if (alignRight && tokens.length > centers.length) extra.push(...tokens.slice(0, tokens.length - centers.length));
@@ -111,7 +149,7 @@
   /* ───────── 4. Celdas ───────── */
   function mkCell(tok) {
     if (!tok) return { raw: '', forbidden: false, flags: ['missing'], conf: null };
-    const flags = []; const raw = tok.text; const conf = tok.conf ?? null;
+    const flags = []; const raw = tok.kind === 'num' && parseNumber(tok.text) != null ? String(parseNumber(tok.text)) : tok.text; const conf = tok.conf ?? null;
     let forbidden = false, suggestion = null;
     if (tok.kind === 'forbid') forbidden = true;
     else if (tok.kind === 'dash') flags.push('ambiguous-dash');
@@ -218,9 +256,21 @@
       issues.push({ category: 'incompleto', level: 'error', code: 'no-table', message: 'No se encontró una tabla de costos. Introduce los datos manualmente o vuelve a leer el documento con OCR forzado.' });
       model.issues = issues; model.ok = false; return model;
     }
-    const tableRows = table.run;
-    const isDemandRow = x => DEMAND_LABEL.test(joinTokens(x.s.label).replace(/[:.]$/, '')) || x.s.label.some(t => DEMAND_LABEL.test(t.text.replace(/[:.]$/, '')));
-    const isTotalRow = x => x.s.label.some(t => TOTAL_LABEL.test(t.text.replace(/[:.]$/, '')));
+    const tableRows = table.run.slice();
+    const isDemandLabel = label => DEMAND_LABEL.test(joinTokens(label).replace(/[:.]$/, '')) || label.some(t => DEMAND_LABEL.test(t.text.replace(/[:.]$/, '')));
+    const isTotalLabel = label => label.some(t => TOTAL_LABEL.test(t.text.replace(/[:.]$/, '')));
+    const isDemandRow = x => isDemandLabel(x.s.label);
+    const isTotalRow = x => isTotalLabel(x.s.label);
+    // La fila de demanda puede quedar separada de la matriz por un salto de página y encabezados repetidos.
+    // Como este bloque corresponde a un solo problema, recuperamos la fila rotulada «Demanda» si tiene el mismo ancho tabular.
+    const runSourceRows = new Set(table.run.map(x => x.r));
+    const runWidths = table.run.map(x => x.s.cells.length);
+    const inferredWidth = runWidths.length ? Number(Object.entries(runWidths.reduce((a, v) => (a[v] = (a[v] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1] || Number(b[0]) - Number(a[0]))[0][0]) : 0;
+    rows.forEach(r => {
+      if (runSourceRows.has(r)) return;
+      const split = splitRow(r); if (!split || !isDemandLabel(split.label) || split.cells.length !== inferredWidth) return;
+      tableRows.push({ r, s: split });
+    });
     // El primer token de una fila puede ser una etiqueta numérica (p. ej. «1 8 3 4 5 550»): si todas las filas de costos traen un token extra de más y sin etiqueta, se separa.
     const costCandidates = tableRows.filter(x => !isDemandRow(x) && !isTotalRow(x));
     const modal = (arr) => { const c = {}; arr.forEach(v => { c[v] = (c[v] || 0) + 1; }); return Number(Object.entries(c).sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0]); };
@@ -239,15 +289,28 @@
     if (table.header) {
       const toks = table.header.tokens; const firstCenter = centers[0]; const spacing = k > 1 ? centers[1] - centers[0] : 60;
       cornerToks = toks.filter(t => t.cx < firstCenter - spacing * 0.6);
-      const a = assign(toks.filter(t => !cornerToks.includes(t)), centers, 0.62, true); headerCols = a.cols;
+      const headerTokens = toks.filter(t => !cornerToks.includes(t)).slice().sort((x, y) => x.x0 - y.x0);
+      const headerGaps = headerTokens.slice(1).map((t, i) => t.x0 - headerTokens[i].x1);
+      // Texto plano compacto (pegado a mano) sigue siendo posicional; PDF extraído con grandes espacios conserva alineación de columnas.
+      const hasColumnLayout = headerGaps.some(gap => gap >= 18);
+      const a = assign(headerTokens, centers, 0.62, true, hasColumnLayout); headerCols = a.cols;
       if (toks.every(t => t.src === 'text')) { a.extra.forEach(t => { if (a.extra.indexOf(t) < a.extra.length) cornerToks.push(t); }); a.extra.length = 0; }
       if (a.extra.length) issues.push({ category: 'lectura', level: 'warning', code: 'header-extra', message: `Hay texto de cabecera que no se pudo asociar a una columna: «${joinTokens(a.extra)}».` });
     }
     // ¿La última columna es oferta?
     let supplyCol = false;
-    const lastHeader = headerCols && headerCols[k - 1] ? joinTokens(headerCols[k - 1]) : '';
+    const lastHeader = headerCols && headerCols[k - 1] ? joinTokens(headerCols[k - 1]).replace(/\s*\([^)]*\)\s*$/, '').trim() : '';
     if (SUPPLY_HEAD.test(lastHeader)) supplyCol = true;
-    else if (demandRow) { const d = assign(demandRow.s.cells, centers); if (!d.cols[k - 1] && d.cols.slice(0, k - 1).every(Boolean)) supplyCol = true; }
+    else if (demandRow) {
+      const d = assign(demandRow.s.cells, centers);
+      if (!d.cols[k - 1] && d.cols.slice(0, k - 1).every(Boolean)) supplyCol = true;
+      // Tabla sin encabezado: si la última cifra de la fila Demanda es la suma de las anteriores,
+      // es el total impreso bajo la columna de oferta (como en problemarios que omiten los títulos de columna).
+      else if (!table.header && d.cols.length >= 3 && d.cols.every(Boolean)) {
+        const vals = d.cols.map(col => parseNumber(col[0]?.text));
+        if (vals.every(v => v != null) && Math.abs(vals[vals.length - 1] - vals.slice(0, -1).reduce((a, v) => a + v, 0)) < 1e-8) supplyCol = true;
+      }
+    }
     else if (headerCols && headerCols.slice(0, k - 1).every(Boolean) && !headerCols[k - 1]) supplyCol = true;
     let totalCol = false;
     if (headerCols && TOTAL_LABEL.test(joinTokens(headerCols[k - (supplyCol ? 2 : 1)] || [])) && k - (supplyCol ? 1 : 0) > 2) totalCol = true;
@@ -267,6 +330,18 @@
       if (totalCol) { const toks = a.cols[D]; if (toks) checks['rowTotal' + i] = parseNumber(toks[0].text); }
       model.sources.push({ label: lab, supply, origin: supplyCol ? 'tabla' : null }); model.costs.push(cells);
     });
+    // Recuperar nombres de destinos que aparecen explícitos en líneas del enunciado, por ejemplo «Nodo Edge 1: 70 GB».
+    // Solo se usa cuando la tabla no traía etiquetas de columna; nunca se sustituye un encabezado ya leído.
+    if (!table.header || model.destinations.every((d, j) => d.label.raw === `Destino ${j + 1}`)) {
+      const hints = [];
+      for (const line of text.split(/\r?\n/)) {
+        const m = line.match(/^\s*[•*–—-]?\s*(.+?)\s*[:=]\s*\d+(?:[.,]\d+)?\s*(?:TB(?:\/d[ií]a)?|GB|MB|KB|hrs?|h|horas?)(?:\b|$)/i);
+        if (!m) continue;
+        const label = m[1].trim();
+        if (/^(?:nodo(?:\s+edge)?|regi[oó]n|cliente|destino|mercado|tienda|sucursal)\b/i.test(label) && !hints.some(x => norm(x) === norm(label))) hints.push(label);
+      }
+      if (hints.length === D) model.destinations.forEach((d, j) => { d.label = { raw: hints[j], flags: ['from-text'], conf: null, origin: 'enunciado' }; });
+    }
     // Demanda
     if (demandRow) {
       const a = assign(demandRow.s.cells, centers);
@@ -303,7 +378,7 @@
       const diffS = ps.some((v, i) => v !== model.sources[i].label.raw), diffD = pd.some((v, i) => v !== model.destinations[i].label.raw);
       if (diffS || diffD) model.labelSuggestions = { sources: diffS ? ps : null, destinations: diffD ? pd : null, origin: 'patrón' };
     }
-    if (table.header === null) issues.push({ category: 'incompleto', level: 'warning', code: 'no-header', message: 'No se encontró una fila de encabezados: los destinos llevan nombres provisionales («Destino n»). Corrígelos.' });
+    if (table.header === null && model.destinations.some((d, j) => d.label.raw === `Destino ${j + 1}`)) issues.push({ category: 'incompleto', level: 'warning', code: 'no-header', message: 'No se encontró una fila de encabezados: los destinos sin etiqueta llevan nombres provisionales («Destino n»). Corrígelos.' });
     model.table = { rows: costRows.length, cols: D, supplyColumn: supplyCol, demandRow: Boolean(demandRow), page: rows[table.firstIdx] && rows[table.firstIdx].page };
     model.issues = issues; model.ok = true;
     return model;

@@ -2951,3 +2951,5 @@ textarea::placeholder, input::placeholder { color: var(--muted); opacity: .9; }
 .pert-exercise-choice:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#4385f5) 25%,transparent)}
 .pert-exercise-choice strong{font-size:.98rem;line-height:1.35}
 .pert-exercise-choice span{font-size:.86rem;color:var(--muted,#777);line-height:1.4}
+.pert-exercise-choice.is-selected{border-color:var(--accent,#4385f5);background:var(--surface-3,rgba(127,127,127,.14));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent,#4385f5) 28%,transparent)}
+.pert-detected-exercises{margin-bottom:14px}

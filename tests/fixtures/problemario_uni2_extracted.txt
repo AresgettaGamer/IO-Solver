@@ -1,0 +1,113 @@
+                                                                                                Investigación de Operaciones
+
+
+
+Problema 1
+
+Una empresa de infraestructura Cloud debe abastecer la demanda diaria de transferencia de datos de
+sus clientes. Cuenta con 3 Data Centers de origen: DC1 (EE. UU. Este), DC2 (EE. UU. Oeste) y DC3
+(Europa), con capacidades de oferta de 100 TB/día, 150 TB/día y 200 TB/día, respectivamente.
+
+La demanda proviene de 3 Regiones de Usuarios: R1 (América del Norte), R2 (América del Sur) y R3
+(Europa del Este), las cuales requieren 150 TB/día, 120 TB/día y 180 TB/día, respectivamente.
+
+Los costos unitarios de enlace/latencia equivalente (USD por Terabyte transferido) entre cada Data
+Center y Región se presentan en la siguiente tabla:
+
+
+
+Data Center \        R1 (Norteamérica)          R2 (Sudamérica)           R3 (Europa Este)              Oferta (ai)
+Región
+
+DC1 (EE.UU. Este)              $4                        $7                        $8                     100 TB
+
+DC2 (EE.UU.                    $3                        $5                        $9                     150 TB
+Oeste)
+
+DC3 (Europa)                   $8                        $6                        $2                     200 TB
+
+Demanda (bj)                150 TB                    120 TB                     180 TB                   450 TB
+
+
+
+
+Problema 2
+
+Una plataforma de distribución de contenido (CDN) distribuye archivos multimedia de alta definición
+desde 2 Servidores Centrales (Servidor A y Servidor B) hacia 3 Nodos Edge Periféricos (Nodo 1, Nodo 2 y
+Nodo 3).
+
+Las capacidades de almacenamiento disponibles en los servidores centrales son:
+• Servidor A: 120 GB
+• Servidor B: 80 GB
+
+Las demandas de datos requeridas por los nodos periféricos para mantener en caché local son:
+• Nodo Edge 1: 70 GB
+• Nodo Edge 2: 100 GB
+
+
+
+                     Ingeniería en Sistemas Computacionales — Hoja de Ejercicios para Estudiantes
+                                                                                                  Investigación de Operaciones
+
+
+
+• Nodo Edge 3: 80 GB
+
+Los costos unitarios de transferencia por Gigabyte (USD/GB) entre cada servidor y nodo edge son los
+siguientes:
+
+
+
+Servidor A                       $3                        $1                        $4                     120 GB
+
+Servidor B                       $2                        $5                        $3                      80 GB
+
+Demanda (bj)                   70 GB                    100 GB                     80 GB                250 GB (Total)
+
+
+
+
+Problema 3
+
+Un sistema distribuido de procesamiento en lote requiere coordinar la ejecución de tareas intensivas de
+compilación y prueba de código entre 3 Servidores de Cómputo (S1, S2 y S3) y 3 Nodos de
+Almacenamiento y Registro de Salida (A1, A2 y A3).
+
+La disponibilidad de tiempo de procesamiento de los servidores es:
+• Servidor S1: 60 horas-máquina
+• Servidor S2: 80 horas-máquina
+• Servidor S3: 100 horas-máquina
+
+Los requerimientos de procesamiento solicitados por los nodos de almacenamiento son:
+• Nodo A1: 90 horas-máquina
+• Nodo A2: 80 horas-máquina
+• Nodo A3: 70 horas-máquina
+
+Los costos operativos por hora-máquina asignada (USD/hora) se detallan en la siguiente matriz:
+
+Servidor \ Nodo                  A1                        A2                        A3                   Oferta (ai)
+Almacenamiento
+
+Servidor S1                      $6                        $3                        $5                      60 hrs
+
+Servidor S2                      $4                        $2                        $8                      80 hrs
+
+Servidor S3                      $9                        $1                        $7                     100 hrs
+
+
+
+
+                       Ingeniería en Sistemas Computacionales — Hoja de Ejercicios para Estudiantes
+                                                                                          Investigación de Operaciones
+
+
+
+
+Demanda (bj)          90 hrs                     80 hrs                    70 hrs                   240 hrs
+
+
+
+
+               Ingeniería en Sistemas Computacionales — Hoja de Ejercicios para Estudiantes
+

@@ -1,4 +1,4 @@
-"""Pruebas de humo E2E para IO Solver v8.0.0.
+"""Pruebas de humo E2E para IO Solver v8.1.4.
 
 Requiere Playwright para Python y Chromium instalado:
   python -m pip install playwright
@@ -12,6 +12,7 @@ un navegador abierto manualmente. No mide la precisión del OCR de fotografías.
 from __future__ import annotations
 
 import functools
+import shutil
 import threading
 import unittest
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -43,7 +44,11 @@ class TestIOSolverV800(unittest.TestCase):
         cls.base_url = f"http://127.0.0.1:{cls.server.server_address[1]}"
         cls.playwright = sync_playwright().start()
         try:
-            cls.browser = cls.playwright.chromium.launch(headless=True)
+            system_chromium = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+            launch_options = {"headless": True}
+            if system_chromium:
+                launch_options["executable_path"] = system_chromium
+            cls.browser = cls.playwright.chromium.launch(**launch_options)
         except Exception:
             cls.server.shutdown()
             cls.server.server_close()
@@ -77,7 +82,7 @@ class TestIOSolverV800(unittest.TestCase):
 
     def test_version_launcher_and_five_modules(self):
         p = self.page
-        self.assertEqual(p.locator('meta[name="version"]').get_attribute("content"), "8.0.0")
+        self.assertEqual(p.locator('meta[name="version"]').get_attribute("content"), "8.1.4")
         self.assertEqual(p.locator(".module-card").count(), 5)
         self.assertIn("OCR", p.locator(".launcher-beta-note").inner_text())
         self.assertIn("beta", p.locator(".launcher-beta-note").inner_text().lower())
@@ -156,6 +161,26 @@ class TestIOSolverV800(unittest.TestCase):
         self.assertTrue(p.locator("#pert-result").evaluate("el => el.classList.contains('hidden')"))
         p.locator("#pert-solve-btn").click()
         p.wait_for_function("!document.getElementById('pert-result').classList.contains('hidden')")
+        self.assertEqual(self.page_errors, [])
+
+    def test_pert_exercise_choices_remain_available_while_reviewing(self):
+        p = self.page
+        self.open_module("pert")
+        text = (
+            "Ejercicio 1: Plan A\nActividad | Predecesoras | Duración\nA | — | 2\nB | A | 3\n"
+            "Ejercicio 2: Plan B\nActividad | Predecesoras | Duración\nC | — | 4\nD | C | 5"
+        )
+        p.locator("#pert-import-text").fill(text)
+        p.locator("#pert-interpret-text").click()
+        choices = p.locator("#pert-import-preview [data-exercise-index]")
+        self.assertEqual(choices.count(), 2)
+        choices.nth(0).click()
+        self.assertEqual(p.locator("#pert-import-preview [data-exercise-index]").count(), 2)
+        self.assertEqual(p.locator("#pert-import-preview tbody tr").count(), 2)
+        p.locator('#pert-import-preview [data-exercise-index="1"]').click()
+        self.assertEqual(p.locator("#pert-import-preview [data-exercise-index]").count(), 2)
+        self.assertEqual(p.locator("#pert-import-preview tbody tr").count(), 2)
+        self.assertIn("Ejercicio 2", p.locator("#pert-import-preview").inner_text())
         self.assertEqual(self.page_errors, [])
 
 

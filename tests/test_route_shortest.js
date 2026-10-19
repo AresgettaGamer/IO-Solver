@@ -23,4 +23,29 @@ test('interpreta conexiones tabuladas, flechas y lenguaje breve', () => {
   assert.deepEqual(r.edges,[{from:'A',to:'B',weight:4},{from:'B',to:'C',weight:3},{from:'C',to:'D',weight:2}]);
 });
 test('informa cuando no se detectan conexiones', () => assert.throws(()=>parseEdgeText('Solo una descripción sin pesos'),/No encontré aristas/));
-console.log(`\n${count}/7 pruebas Ruta más corta aprobadas.`);
+test('detecta columnas reordenadas según encabezados semánticos', () => {
+  const r = parseEdgeText(`Peso | Destino | Origen
+4 | B | A
+3 | C | B`);
+  assert.deepEqual(r.edges,[{from:'A',to:'B',weight:4},{from:'B',to:'C',weight:3}]);
+  assert.deepEqual(r.warnings,[]);
+});
+test('reconoce sinónimos de columnas aunque cambie el orden', () => {
+  const r = parseEdgeText(`Nodo final | Tiempo | Nodo inicial
+B | 2,5 | A
+C | 1 | B`);
+  assert.deepEqual(r.edges,[{from:'A',to:'B',weight:2.5},{from:'B',to:'C',weight:1}]);
+});
+
+test('ignora texto de diapositivas, pies de página y rutas narradas sin inventar conexiones', () => {
+  const noisy = `1 Gemini Notebook\nLugares, puntos numéricos asignados que deben revisarse\nRuta A -> B -> D -> E. Cálculo: 4 + 5 + 3 = 12\nSolución 1: A > C (2) > D (2) > E (1). Costo = 9.\nPágina 3 de 20\nVeredicto: costo total = 25`;
+  assert.throws(() => parseEdgeText(noisy), /No encontré aristas claramente identificadas/);
+});
+test('extrae conexiones explícitas y no advierte por los párrafos cercanos', () => {
+  const mixed = `Ejercicio: La ruta más corta\nA -> B: 4\nRuta A -> B -> D -> E. Cálculo: 4 + 5 + 3 = 12\n1 Gemini Notebook\nB -> C: 2\nPágina 1 de 2`;
+  const r = parseEdgeText(mixed);
+  assert.deepEqual(r.edges, [{from:'A',to:'B',weight:4},{from:'B',to:'C',weight:2}]);
+  assert.deepEqual(r.warnings, []);
+});
+
+console.log(`\n${count}/11 pruebas Ruta más corta aprobadas.`);

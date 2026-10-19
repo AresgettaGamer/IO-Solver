@@ -95,7 +95,7 @@ function parseActivities() {
     if (!name) throw new Error(`La actividad de la fila ${i+1} no tiene nombre.`);
     if (seen.has(name.toUpperCase())) throw new Error(`La actividad “${name}” está repetida.`);
     seen.add(name.toUpperCase());
-    const pred = String(r.pred || '').split(',').map(x => x.trim()).filter(Boolean).filter(x => x !== '—' && x !== '-');
+    const pred = String(r.pred || '').split(/[,;/]+/).map(x => x.trim()).filter(Boolean).filter(x => x !== '—' && x !== '-');
     const duration = Number(r.duration);
     if (!Number.isFinite(duration) || duration <= 0) throw new Error(`La duración de “${name}” debe ser un número mayor que 0.`);
     let expected = duration;
@@ -517,7 +517,7 @@ function getPertProjectData() {
     app: 'IO Solver',
     module: 'PERT',
     type: 'pert-cpm',
-    version: '8.1.1',
+    version: '8.1.4',
     projectName: String(pertEl.projectName?.value || '').trim() || 'Mi proyecto PERT / CPM',
     mode: Boolean(pertState.mode),
     learning: Boolean(pertState.learning),
@@ -817,7 +817,7 @@ pertEl.loadBtn?.addEventListener('click', () => pertEl.fileInput?.click());
 pertEl.fileInput?.addEventListener('change', e => loadPertProject(e.target.files?.[0]));
 pertEl.exportReport?.addEventListener('click', exportPertReport);
 
-// Importación de actividades desde texto, PDF o imagen con selector de ejercicios (v8.1.1).
+// Importación de actividades desde texto, PDF o imagen con selector de ejercicios persistente (v8.1.4).
 (function initPertDocumentImport() {
   const input = document.getElementById('pert-doc-input');
   const textArea = document.getElementById('pert-import-text');
@@ -830,13 +830,27 @@ pertEl.exportReport?.addEventListener('click', exportPertReport);
   const escape = value => pertEsc(value);
   const parseActivityText = window.IOPertImportAPI?.parseActivityText;
   if (!parseActivityText) { status.textContent = 'El intérprete de actividades no está disponible.'; status.className = 'message error'; return; }
-  function renderPreview(parsed, sourceLabel) {
+  function renderPreview(parsed, sourceLabel, selectedExerciseIndex = null) {
     candidate = { ...parsed, sourceLabel };
     const pertCols = parsed.hasPertEstimates;
     const head = `<thead><tr><th>Actividad</th><th>Predecesoras</th><th>Duración${pertCols ? ' (Te)' : ''}</th>${pertCols ? '<th>Optimista</th><th>Más probable</th><th>Pesimista</th>' : ''}</tr></thead>`;
     const body = parsed.rows.map((r, i) => `<tr data-preview-row="${i}"><td><input data-pfield="name" aria-label="Nombre de actividad ${i+1}" value="${escape(r.name)}"></td><td><input data-pfield="pred" aria-label="Predecesoras de actividad ${i+1}" value="${escape(r.pred)}" placeholder="—"></td><td><input data-pfield="duration" aria-label="Duración de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.duration)}"></td>${pertCols ? `<td><input data-pfield="o" aria-label="Optimista de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.o)}"></td><td><input data-pfield="m" aria-label="Más probable de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.m)}"></td><td><input data-pfield="p" aria-label="Pesimista de actividad ${i+1}" type="number" min="0" step="any" value="${escape(r.p)}"></td>` : ''}</tr>`).join('');
     const warning = parsed.warnings.length ? `<div class="optimization-warning"><strong>Revisar antes de aplicar:</strong><ul>${parsed.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul></div>` : '<p class="message ok">Se detectaron actividades. Revisa cada celda antes de aplicar.</p>';
-    preview.innerHTML = `<div class="import-review"><div class="section-title-row"><h3>Revisión de actividades — ${escape(sourceLabel)}</h3><p>${parsed.rows.length} actividad(es) · ${pertCols?'incluye estimaciones PERT':'duración fija CPM'}</p></div>${warning}<div class="table-wrap"><table class="pert-import-preview">${head}<tbody>${body}</tbody></table></div><div class="pert-import-actions"><button type="button" class="btn primary" id="pert-import-apply">Aplicar actividades</button><button type="button" class="btn secondary" id="pert-import-cancel">Descartar</button></div></div>`;
+    const reviewHtml = `<div class="import-review"><div class="section-title-row"><h3>Revisión de actividades — ${escape(sourceLabel)}</h3><p>${parsed.rows.length} actividad(es) · ${pertCols?'incluye estimaciones PERT':'duración fija CPM'}</p></div>${warning}<div class="table-wrap"><table class="pert-import-preview">${head}<tbody>${body}</tbody></table></div><div class="pert-import-actions"><button type="button" class="btn primary" id="pert-import-apply">Aplicar actividades</button><button type="button" class="btn secondary" id="pert-import-cancel">Descartar</button></div></div>`;
+    const retainedSections = preview._pertDetectedSections;
+    const chooserHtml = retainedSections && retainedSections.length > 1
+      ? detectedSectionsMarkup(retainedSections, preview._pertDetectedLabel || 'documento', selectedExerciseIndex)
+      : '';
+    preview.innerHTML = chooserHtml + reviewHtml;
+    preview.classList.remove('hidden');
+  }
+  function detectedSectionsMarkup(parsedSections, label, selectedIndex = null) {
+    return `<div class="import-review pert-detected-exercises"><div class="section-title-row"><h3>Ejercicios detectados — ${escape(label)}</h3><p>${parsedSections.length} ejercicios reconocidos. Puedes cambiar de ejercicio sin volver a interpretar el archivo.</p></div><div class="pert-exercise-choice-list">${parsedSections.map((item, i) => `<button type="button" class="pert-exercise-choice${selectedIndex === i ? ' is-selected' : ''}" data-exercise-index="${i}"${selectedIndex === i ? ' aria-current="true"' : ''}><strong>${escape(item.title)}</strong><span>${item.parsed.rows.length} actividades · ${item.parsed.hasPertEstimates ? 'PERT (estimaciones O/M/P)' : 'CPM / duración fija'}${selectedIndex === i ? ' · En revisión' : ''}</span></button>`).join('')}</div>${selectedIndex == null ? '<button type="button" class="btn secondary" id="pert-import-cancel">Cancelar importación</button>' : ''}</div>`;
+  }
+  function renderDetectedSections(parsedSections, label) {
+    preview._pertDetectedSections = parsedSections;
+    preview._pertDetectedLabel = label;
+    preview.innerHTML = detectedSectionsMarkup(parsedSections, label);
     preview.classList.remove('hidden');
   }
   function detectExerciseSections(source) {
@@ -848,6 +862,7 @@ pertEl.exportReport?.addEventListener('click', exportPertReport);
     return matches.map((m, i) => ({ title: m[1].trim(), text: text.slice(m.index + m[0].length, i + 1 < matches.length ? matches[i + 1].index : text.length).trim(), index: i }));
   }
   function parseAndPreview(source, label) {
+    preview._pertDetectedSections = null; preview._pertDetectedLabel = label;
     try {
       const sections = detectExerciseSections(source);
       const parsedSections = [];
@@ -859,10 +874,8 @@ pertEl.exportReport?.addEventListener('click', exportPertReport);
       }
       if (parsedSections.length > 1) {
         candidate = null;
-        preview.classList.remove('hidden');
-        preview.innerHTML = `<div class="import-review"><div class="section-title-row"><h3>Ejercicios detectados — ${escape(label)}</h3><p>${parsedSections.length} ejercicios con actividades reconocibles. Elige uno para revisarlo.</p></div><div class="pert-exercise-choice-list">${parsedSections.map((item, i) => `<button type="button" class="pert-exercise-choice" data-exercise-index="${i}"><strong>${escape(item.title)}</strong><span>${item.parsed.rows.length} actividades · ${item.parsed.hasPertEstimates ? 'PERT (estimaciones O/M/P)' : 'CPM / duración fija'}</span></button>`).join('')}</div><button type="button" class="btn secondary" id="pert-import-cancel">Cancelar</button></div>`;
-        preview._pertDetectedSections = parsedSections;
-        status.textContent = `Se detectaron ${parsedSections.length} ejercicios en el documento. Selecciona cuál quieres importar; el proyecto no ha cambiado.`;
+        renderDetectedSections(parsedSections, label);
+        status.textContent = `Se detectaron ${parsedSections.length} ejercicios en el documento. Selecciona cuál quieres revisar; los demás seguirán disponibles y el proyecto no ha cambiado.`;
         status.className = 'message ok';
         return;
       }
@@ -889,22 +902,22 @@ pertEl.exportReport?.addEventListener('click', exportPertReport);
     const choice = event.target.closest('[data-exercise-index]');
     if (choice) {
       const sections = preview._pertDetectedSections || [];
-      const selected = sections[Number(choice.dataset.exerciseIndex)];
-      if (selected) renderPreview(selected.parsed, `${selected.title} · ${input.files?.[0]?.name || 'documento'}`);
-      preview._pertDetectedSections = null;
-      status.textContent = 'Ejercicio seleccionado. Revisa los datos antes de aplicarlos; todavía no se ha modificado el proyecto.';
+      const selectedIndex = Number(choice.dataset.exerciseIndex);
+      const selected = sections[selectedIndex];
+      if (selected) renderPreview(selected.parsed, `${selected.title} · ${preview._pertDetectedLabel || 'documento'}`, selectedIndex);
+      status.textContent = 'Ejercicio seleccionado. Todos los ejercicios detectados permanecen disponibles; revisa los datos antes de aplicarlos.';
       status.className = 'message ok';
       return;
     }
-    if (event.target.closest('#pert-import-cancel')) { candidate=null; preview._pertDetectedSections=null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent='Borrador descartado. El proyecto actual no cambió.'; status.className='message'; return; }
+    if (event.target.closest('#pert-import-cancel')) { candidate=null; preview._pertDetectedSections=null; preview._pertDetectedLabel=null; preview.classList.add('hidden'); preview.innerHTML=''; status.textContent='Borrador descartado. El proyecto actual no cambió.'; status.className='message'; return; }
     if (!event.target.closest('#pert-import-apply')) return;
     try {
       const pertCols = Boolean(candidate?.hasPertEstimates); if (!candidate) throw new Error('No hay actividades para aplicar.');
       const rows = [...preview.querySelectorAll('tbody tr')].map((tr, i) => { const val = field => tr.querySelector(`[data-pfield="${field}"]`)?.value ?? ''; return { name: clean(val('name')), pred: clean(val('pred')).replace(/^[-–—]+$/,'').trim(), duration: clean(val('duration')), o: clean(val('o')) || clean(val('duration')), m: clean(val('m')) || clean(val('duration')), p: clean(val('p')) || clean(val('duration')) }; });
       const names = new Set(); rows.forEach((r,i)=>{ const key=r.name.toLocaleLowerCase(); if(!r.name) throw new Error(`La fila ${i+1} necesita nombre.`); if(names.has(key)) throw new Error(`El nombre «${r.name}» está repetido.`); names.add(key); const d=Number(r.duration); if(!Number.isFinite(d)||d<=0) throw new Error(`La duración de «${r.name}» debe ser mayor que cero.`); if(pertCols){const o=Number(r.o),m=Number(r.m),p=Number(r.p);if(![o,m,p].every(Number.isFinite)||o<0||o>m||m>p)throw new Error(`En «${r.name}» debe cumplirse 0 ≤ O ≤ M ≤ P.`);}});
-      const missing=rows.flatMap(r=>r.pred.split(/[,;]+/).map(s=>s.trim()).filter(Boolean).filter(s=>!names.has(s.toLocaleLowerCase())).map(s=>`${r.name} → ${s}`)); if(missing.length) throw new Error(`Corrige las predecesoras no encontradas: ${missing.join(', ')}.`);
+      const missing=rows.flatMap(r=>r.pred.split(/[,;/]+/).map(s=>s.trim()).filter(Boolean).filter(s=>!names.has(s.toLocaleLowerCase())).map(s=>`${r.name} → ${s}`)); if(missing.length) throw new Error(`Corrige las predecesoras no encontradas: ${missing.join(', ')}.`);
       pertState.rows=rows; pertState.mode=pertCols; pertState.lastResult=null; pertEl.mode.checked=pertCols; syncPertColumns(); renderPertRows(); pertEl.result.classList.add('hidden'); pertMessage(`Se aplicaron ${rows.length} actividades al editor. Revisa la tabla y pulsa «Calcular» cuando estés listo.`, 'ok');
-      candidate=null; preview.classList.add('hidden'); preview.innerHTML=''; document.getElementById('pert-activity-body')?.scrollIntoView({behavior:window.ioScrollBehavior(),block:'start'});
+      candidate=null; preview._pertDetectedSections=null; preview._pertDetectedLabel=null; preview.classList.add('hidden'); preview.innerHTML=''; document.getElementById('pert-activity-body')?.scrollIntoView({behavior:window.ioScrollBehavior(),block:'start'});
     } catch (error) { status.textContent = error.message || 'No se pudo aplicar el borrador.'; status.className='message error'; }
   });
   window.IOPertImportAPI = { parseActivityText };

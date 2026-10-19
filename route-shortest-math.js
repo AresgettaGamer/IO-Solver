@@ -4,25 +4,55 @@
   function parseEdgeText(text) {
     const edges = [], warnings = [];
     const lines = String(text || '').replace(/\r/g, '').split('\n');
+    const node = String.raw`[\p{L}\p{N}_][\p{L}\p{N}_.-]{0,24}`;
+    const weightRE = /^-?\d+(?:[.,]\d+)?$/;
+    const safeNode = value => new RegExp(`^${node}$`, 'u').test(String(value || '').trim());
+    const separators = /\s*(?:\||;|\t)\s*/;
+    // La tabla necesita una fila de encabezados explícita con separadores; el orden de las columnas es libre.
+    const headerLine = lines.findIndex(line => /origen|desde|nodo\s*(?:inicial|inicial)|inicio/i.test(line) && /destino|hasta|nodo\s*(?:final|destino)|fin/i.test(line) && /peso|coste|costo|distancia|tiempo|valor/i.test(line));
+    let header = null;
+    if (headerLine >= 0) {
+      const cols = lines[headerLine].trim().split(separators).map(x => x.trim());
+      const from = cols.findIndex(c => /origen|desde|nodo\s*inicial|inicio/i.test(c));
+      const to = cols.findIndex(c => /destino|hasta|nodo\s*final|fin/i.test(c));
+      const weight = cols.findIndex(c => /peso|coste|costo|distancia|tiempo|valor/i.test(c));
+      if (cols.length >= 3 && from >= 0 && to >= 0 && weight >= 0 && new Set([from, to, weight]).size === 3) header = { from, to, weight };
+    }
+    const addWarning = (lineNo, line) => {
+      if (warnings.length >= 8) return;
+      warnings.push(`Línea ${lineNo}: parece una conexión, pero no pude asignar origen, destino y peso con seguridad («${line.slice(0, 90)}»).`);
+    };
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim(); if (!line) continue;
-      if (/^(aristas?|conexiones?|origen\s*[,|;\t ]+destino|nodo\s*[,|;\t ]+nodo|desde\b|ejercicio\b|problema\b|ruta más corta)/i.test(line) && !/\d/.test(line)) continue;
-      let m = line.match(/^(.+?)\s*(?:->|→|⟶|—|–|:|\s+-\s+)\s*(.+?)\s*(?:[,;|\t ]+)(-?\d+(?:[.,]\d+)?)\s*$/);
-      if (!m) m = line.match(/^desde\s+(.+?)\s+hasta\s+(.+?)\s+(?:con\s+)?(?:costo|coste|peso|distancia|distancia\s+de)?\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)\s*$/i);
+      if (header && i === headerLine) continue;
+      if (header && i > headerLine && /[|;\t,]/.test(line)) {
+        const cols = line.split(separators).map(x => x.trim());
+        if (cols.length !== Math.max(header.from, header.to, header.weight) + 1) continue;
+        const from = cols[header.from] || '', to = cols[header.to] || '', raw = cols[header.weight] || '';
+        if (from && to && weightRE.test(raw)) edges.push({ from, to, weight: Number(raw.replace(',', '.')) });
+        else if (cols.length === 3 && cols.some(Boolean)) addWarning(i + 1, line);
+        continue;
+      }
+      if (/^(aristas?|conexiones?|origen\s*[,|;\t ]+destino|nodo\s*[,|;\t ]+nodo|ejercicio\b|problema\b|ruta más corta)/i.test(line) && !/->|→|⟶/.test(line)) continue;
+      let m = line.match(new RegExp(`^(${node})\\s*(?:->|→|⟶|—|–|\\s+-\\s+)\\s*(${node})\\s*(?::|=|,|\\s+)\\s*(-?\\d+(?:[.,]\\d+)?)\\s*$`, 'u'));
+      if (!m) m = line.match(/^desde\s+(.+?)\s+hasta\s+(.+?)\s+(?:con\s+)?(?:costo|coste|peso|distancia|tiempo)?\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)\s*$/i);
       if (!m) {
-        const cols = line.split(/\s*(?:\||;|\t|,)\s*/);
-        if (cols.length >= 3 && /^-?\d+(?:[.,]\d+)?$/.test(cols[cols.length - 1])) m = [line, cols[0], cols[1], cols[2]];
+        const cols = line.split(separators).map(x => x.trim());
+        if (cols.length === 3 && safeNode(cols[0]) && safeNode(cols[1]) && weightRE.test(cols[2])) m = [line, cols[0], cols[1], cols[2]];
+        else if (cols.length === 3 && safeNode(cols[0]) && safeNode(cols[1]) && cols[2]) addWarning(i + 1, line);
       }
       if (!m) {
-        const generic = line.match(/^([\p{L}\p{N}_.-]+)\s+([\p{L}\p{N}_.-]+)\s+(-?\d+(?:[.,]\d+)?)\s*$/u);
-        if (generic) m = generic;
+        // Solo advertir sobre líneas con apariencia estructural de arista; prosa, pies, fórmulas y OCR suelto se ignoran.
+        const arrowCount = (line.match(/(?:->|→|⟶|—|–)/g) || []).length;
+        const simpleArrowCandidate = arrowCount === 1 && /\d/.test(line) && new RegExp(`^${node}\\s*(?:->|→|⟶|—|–|\\s+-\\s+)\\s*${node}\\s+[^ ]+$`, 'u').test(line);
+        if (simpleArrowCandidate) addWarning(i + 1, line);
+        continue;
       }
-      if (!m) { if (/\d/.test(line) && !/^(distancia|peso|costo|coste|valor)/i.test(line)) warnings.push(`Línea ${i + 1}: no se pudo interpretar «${line.slice(0, 90)}».`); continue; }
       const from = String(m[1]).trim().replace(/^desde\s+/i, '').replace(/[:;,|]+$/, ''), to = String(m[2]).trim().replace(/^hasta\s+/i, '').replace(/[:;,|]+$/, ''), weight = Number(String(m[3]).replace(',', '.'));
-      if (!from || !to || !Number.isFinite(weight)) { warnings.push(`Línea ${i + 1}: datos incompletos.`); continue; }
+      if (!from || !to || !Number.isFinite(weight)) { addWarning(i + 1, line); continue; }
       edges.push({ from, to, weight });
     }
-    if (!edges.length) throw new Error('No encontré aristas con origen, destino y peso. Usa una fila por conexión, por ejemplo: A B 4 o A -> B: 4.');
+    if (!edges.length) throw new Error('No encontré aristas claramente identificadas. Usa una conexión por línea (A B 4 o A -> B: 4), o una tabla con encabezados y columnas separadas. El texto narrativo y los pies de página no se tomarán como conexiones.');
     return { edges, warnings };
   }
   function computeShortestPath(inputEdges, start, goal, directed = false) {

@@ -29,4 +29,60 @@ test('interpreta filas sin separadores con descripción y predecesora final',()=
  const r=parseActivityText('A Elegir el tema — 2\nB Investigar información A 3\nC Elaborar diapositivas B 4\nD Preparar la exposición C 2');
  assert.equal(r.rows.length,4); assert.deepEqual(r.rows.map(x=>x.pred),['','A','B','C']); assert.deepEqual(r.warnings,[]);
 });
-console.log(`\n${count}/7 pruebas Importación PERT/CPM aprobadas.`);
+test('detecta columnas reordenadas mediante sus encabezados',()=>{
+ const r=parseActivityText(`Predecesoras | Duración | Actividad
+— | 2 | A
+A | 3 | B
+A | 4 | C
+B, C | 5 | D`);
+ assert.deepEqual(r.rows.map(x=>x.name),['A','B','C','D']);
+ assert.deepEqual(r.rows.map(x=>x.pred),['','A','A','B, C']);
+ assert.deepEqual(r.rows.map(x=>Number(x.duration)),[2,3,4,5]);
+ assert.deepEqual(r.warnings,[]);
+});
+test('conserva dos o más predecesoras en texto extraído sin separadores de columna',()=>{
+ const r=parseActivityText(`A — 2
+B A 3
+C A 4
+D Preparar entrega B, C 5`);
+ assert.deepEqual(r.rows.map(x=>x.pred),['','A','A','B, C']);
+ assert.deepEqual(r.warnings,[]);
+});
+test('ignora encabezados partidos, instrucciones y pie de página de un PDF real',()=>{
+ const source = `Un equipo de estudiantes debe organizar una exposición. Para lograrlo, realizará las siguientes actividades:
+   Activida
+                               Descripción                Predecesora        a      m    b
+      d
+
+  A                          Elegir el tema                    —             1       2   3
+
+  B                     Investigar información                  A            2       3   4
+
+  C                      Elaborar diapositivas                  B            1       2   3
+
+  D                     Preparar la exposición                  C            1       1   3
+
+ Se pide:
+ 1. Calcular el tiempo esperado de cada actividad.
+ 2. Dibujar la red del proyecto.
+ Investigación de Operaciones                                                                                    Página 1 de 2`;
+ const r=parseActivityText(source);
+ assert.equal(r.rows.length,4);
+ assert.deepEqual(r.rows.map(x=>x.name),['A','B','C','D']);
+ assert.deepEqual(r.rows.map(x=>x.pred),['','A','B','C']);
+ assert.deepEqual(r.rows.map(x=>[Number(x.o),Number(x.m),Number(x.p)]),[[1,2,3],[2,3,4],[1,2,3],[1,1,3]]);
+ assert.deepEqual(r.warnings,[]);
+});
+test('lee tabla PDF con encabezados PERT reordenados y descripción de varias palabras',()=>{
+ const source = `Pesimista              Actividad               Más probable         Predecesoras          Optimista
+8                      A                      5                     —                     2
+10                     B                      6                     A                     4
+9                      C                      5                     A                     3
+12                     D                      8                     B, C                  4`;
+ const r=parseActivityText(source);
+ assert.deepEqual(r.rows.map(x=>x.name),['A','B','C','D']);
+ assert.deepEqual(r.rows.map(x=>x.pred),['','A','A','B, C']);
+ assert.deepEqual(r.rows.map(x=>[Number(x.o),Number(x.m),Number(x.p)]),[[2,5,8],[4,6,10],[3,5,9],[4,8,12]]);
+ assert.deepEqual(r.warnings,[]);
+});
+console.log(`\n${count}/11 pruebas Importación PERT/CPM aprobadas.`);

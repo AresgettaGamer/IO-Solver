@@ -1,10 +1,37 @@
-# IO Solver v8.1.1
+# IO Solver v8.1.5
 
 Herramienta educativa de **Investigación de Operaciones** para navegador, organizada en cinco módulos: **Simplex**, **PERT / CPM**, **Modelos de transporte**, **Ruta más corta** y **Optimización clásica**.
 
 Simplex conserva su motor de programación lineal; PERT / CPM planifica redes de actividades; Transporte construye matrices de distribución y enseña soluciones iniciales; Ruta más corta resuelve redes ponderadas con Dijkstra; Optimización clásica analiza funciones polinómicas de una variable para estudiar máximos, mínimos y puntos de inflexión.
 
-## v8.1.1 — Corrección del lector PERT/CPM
+## v8.1.5 — informes de Transporte con tablas por iteración
+
+- La exportación imprimible de Esquina Noroeste y Costo Mínimo ahora incluye una tabla completa después de cada asignación, con las cantidades acumuladas, costos unitarios, oferta restante y demanda pendiente.
+- Cada iteración incorpora el costo de la asignación (`cantidad × costo unitario`) y el costo acumulado, para que el procedimiento pueda seguirse y verificarse sin reconstruir las operaciones a mano.
+- Se mantiene la tabla inicial de costos/balance, la formulación matemática, el procedimiento narrado y la tabla final.
+- No cambia el motor de asignación ni se afirma optimalidad: ambos métodos siguen produciendo soluciones iniciales factibles, no necesariamente óptimas.
+- Las pruebas automatizadas de lógica se ejecutan sobre los mismos módulos; la impresión visual final debe comprobarse en navegador mediante «Imprimir / Guardar PDF».
+
+## v8.1.4 — lector de Transporte y selección persistente de ejercicios
+
+- Transporte reconoce costos escritos como `$4`, importes acompañados por unidades (`TB`, `GB`, `hrs`) y la columna `Oferta (ai)`.
+- Recupera filas de demanda que aparecen más adelante por un salto de página, evita confundir etiquetas `S1`, `S2`, `S3` con cifras OCR y obtiene nombres de destinos explícitos del enunciado cuando la tabla carece de encabezados.
+- Se agregaron pruebas de regresión usando tanto el texto extraído como tokens posicionados del `problemario_uni2.pdf`: los tres modelos se reconstruyen con sus matrices, ofertas y demandas. El problema 2 se detecta como desbalanceado (oferta 200, demanda 250), por lo que debe agregarse una fuente ficticia al resolver.
+- PERT/CPM mantiene visible la lista de ejercicios detectados mientras revisas uno; puedes saltar entre ellos sin volver a interpretar el texto.
+- Ruta más corta ya no interpreta párrafos, rutas narradas, marcas de agua ni pies de página como conexiones solo porque contienen números. Solo procesa filas de conexión claramente estructuradas.
+- Pruebas: PERT/CPM 11/11, Ruta más corta 11/11, Optimización clásica 6/6, Transporte 15/15 y ejemplo docente de Transporte aprobado.
+- Los cambios son heurísticos y no sustituyen la revisión visual del documento ni añaden comprensión de grafos dibujados dentro de diapositivas.
+
+## v8.1.3 — corrección de falsos positivos en PERT/CPM
+
+- Se corrigió un error reproducido con PDFs reales: encabezados partidos como «Activida» + «d» y pies como «Investigación de Operaciones · Página 1 de 2» ya no se interpretan como filas de actividad.
+- Las tablas con descripción de varias palabras, datos O/M/P y dependencias múltiples se pueden interpretar a partir de las columnas de datos, aunque la extracción de PDF parta o desplace algunos encabezados.
+- Se redujeron los avisos falsos: solo se señalan líneas que realmente parecen filas de actividad incompletas, no párrafos, instrucciones ni pies de página.
+- La validación de predecesoras inexistentes sigue activa para etiquetas de actividades reales.
+- Pruebas del importador PERT/CPM: 11/11. Se agregó una regresión tomada del texto extraído del PDF de ejercicios; Ruta más corta, Optimización clásica y Transporte conservan sus pruebas.
+- La lectura de PDFs escaneados y OCR sigue requiriendo revisión en la vista previa; esta corrección no promete interpretar cualquier diseño visual sin ambigüedad.
+
+## v8.1.2 — Lectores PERT/CPM y Ruta más corta más flexibles
 
 - Corrige la lectura de filas que incluyen una columna de descripción entre la etiqueta de actividad y sus predecesoras.
 - Corrige la interpretación de filas extraídas de PDF sin separadores visibles, evitando confundir descripciones como «Elegir el tema» con predecesoras.
@@ -31,7 +58,7 @@ Simplex conserva su motor de programación lineal; PERT / CPM planifica redes de
 - La importación compartida sigue sirviendo a Simplex y Transporte. Transporte acepta PDF, imagen y texto pegado; aplicar un modelo no ejecuta el algoritmo.
 - Las exportaciones nuevas de proyectos identifican la versión 8.0.0; se mantienen compatibles los proyectos JSON anteriores conocidos.
 - **Estado del lector:** la extracción de texto seleccionable de PDF es la ruta más fiable. La lectura de tablas mediante OCR, sobre todo en fotografías, escaneos y escritura manuscrita, sigue en beta y requiere revisión humana. Una transcripción no confirmada nunca debe tratarse como verdad matemática.
-- **Fuera de alcance en v8.0.0:** asistente generativo / IA visual, formulación automática desde problemas narrativos de optimización y resolución de funciones no polinómicas o problemas multivariables. Se consideran para una versión posterior, prevista como v8.1.0.
+- **Fuera de alcance en v8.0.0:** asistente generativo / IA visual, formulación automática desde problemas narrativos de optimización y resolución de funciones no polinómicas o problemas multivariables. Se consideran para una versión posterior; el trabajo de IA se mantiene separado de los parches heurísticos de importación.
 
 ### Verificaciones de v8.0.0
 
@@ -60,7 +87,7 @@ Incluye, entre otras mejoras acumuladas:
 - Diagnóstico visual de infactibilidad, no acotamiento, ciclos, límite de iteraciones, empates en la prueba de razón, degeneración, posibles óptimos alternativos, artificiales con valor cero y pivotes numéricamente pequeños.
 - Módulo PERT / CPM ya integrado como complemento.
 
-**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v8.0.0**.
+**Nota de versionado:** las entradas `v3.x` que aparecen más abajo son historial de desarrollo y se conservan deliberadamente para mantener la trazabilidad de los cambios. La versión publicada actual es **v8.1.4**.
 
 ## v7.11.1 — OCR más conservador y texto pegado en Transporte
 
@@ -106,7 +133,7 @@ Corrige el selector entre Esquina Noroeste y Costo Mínimo. Los campos `input` t
 
 ## v7.10.1 — Primera revisión del módulo de Transporte
 
-Versión intermedia de trabajo anterior a este hotfix. Se conserva aquí como referencia del historial; la versión vigente es **v8.0.0**.
+Versión intermedia de trabajo anterior a este hotfix. Se conserva aquí como referencia del historial; la versión vigente es **v8.1.5**.
 
 ## v7.10.0 — Módulo de Modelos de transporte
 
@@ -342,3 +369,9 @@ Mejoras de robustez en números escritos/importados (miles, decimales y fraccion
 - Las advertencias reales de lectura, como un RHS negativo, conservan el color semántico amarillo.
 - Se mantienen separados los colores de personalización de los colores semánticos de estado.
 - Se agregan tres acentos: Rosa, Magenta e Índigo, junto con Azul, Turquesa y Violeta.
+
+
+## v8.1.2 — Ajustes adicionales de interpretación
+- PERT/CPM: interpreta columnas reordenadas a partir de encabezados semánticos; conserva múltiples predecesoras separadas por coma, punto y coma o barra; incluye pruebas de tablas reordenadas y texto extraído sin separadores.
+- Ruta más corta: reconoce columnas de origen, destino y peso aunque estén en distinto orden, incluidos sinónimos como nodo inicial/final y tiempo.
+- Los datos importados siguen siendo un borrador revisable antes de aplicarse. Las pruebas automatizadas no garantizan lectura perfecta de tablas escaneadas o grafos insertados como imágenes.

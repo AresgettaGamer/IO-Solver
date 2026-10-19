@@ -1,4 +1,4 @@
-# Pruebas de IO Solver v8.0.0
+# Pruebas de IO Solver v8.1.4
 
 ## Pruebas de lógica (Node.js)
 
@@ -32,4 +32,4 @@ La suite inicia un servidor HTTP en un puerto libre, comprueba el launcher y la 
 
 ## Documentos de prueba
 
-`fixtures/` contiene PDFs, PNG y JPEG sintéticos para probar extracción, OCR, tablas mixtas y errores. No representan todas las condiciones de cámaras reales, sombras, perspectiva ni escritura manuscrita. `make_fixtures.py` puede regenerarlos si están instalados Playwright para Python y Pillow.
+`fixtures/` contiene PDFs, PNG y JPEG sintéticos para probar extracción, OCR, tablas mixtas y errores; también incluye `problemario_uni2_extracted.txt` (texto) y `problemario_uni2_geometry.json` (líneas y tokens aproximados por coordenadas), ambos derivados del problemario real y utilizados por pruebas de regresión de Transporte. No representan todas las condiciones de cámaras reales, sombras, perspectiva ni escritura manuscrita. `make_fixtures.py` puede regenerarlos si están instalados Playwright para Python y Pillow.

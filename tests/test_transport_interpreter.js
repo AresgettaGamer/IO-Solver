@@ -52,4 +52,50 @@ t('11. cifra OCR de confianza muy baja bloquea hasta confirmarla (geometría + c
   assert.strictEqual(m.costs[0][1].raw, '6'); assert.ok(v.issues.some(i => i.code === 'confirm-needed'), JSON.stringify(v.issues.map(i => i.code))); assert.strictEqual(v.canApply, false);
   m.costs[0][1].flags = []; assert.strictEqual(TI.validate(m).canApply, true);
 });
+
+t('12. problemario real U2: separadores de moneda, unidades y etiqueta de oferta con sufijo', () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const text = fs.readFileSync(path.join(__dirname, 'fixtures/problemario_uni2_extracted.txt'), 'utf8');
+  const sections = text.split(/(?=^Problema\s+\d+\s*$)/m).filter(x => /^Problema\s+\d+/m.test(x));
+  assert.equal(sections.length, 3);
+  const m = TI.interpret(sections[0]);
+  assert.deepStrictEqual(raw(m), { src: ['DC1 (EE.UU. Este)', 'DC2 (EE.UU. Oeste)', 'DC3 (Europa)'], dst: ['R1 (Norteamérica)', 'R2 (Sudamérica)', 'R3 (Europa Este)'], supply: ['100', '150', '200'], demand: ['150', '120', '180'], costs: [['4','7','8'],['3','5','9'],['8','6','2']] });
+  assert.equal(TI.validate(m).errors, 0);
+  assert.deepStrictEqual(TI.validate(m).totals, { supply: 450, demand: 450, difference: 0 });
+});
+t('13. problemario real U2: matriz sin encabezados de destinos y fila de demanda con total', () => {
+  const fs = require('node:fs'); const path = require('node:path'); const text = fs.readFileSync(path.join(__dirname, 'fixtures/problemario_uni2_extracted.txt'), 'utf8');
+  const sections = text.split(/(?=^Problema\s+\d+\s*$)/m).filter(x => /^Problema\s+\d+/m.test(x));
+  const m = TI.interpret(sections[1]);
+  assert.deepStrictEqual(raw(m), { src: ['Servidor A','Servidor B'], dst: ['Nodo Edge 1','Nodo Edge 2','Nodo Edge 3'], supply: ['120','80'], demand: ['70','100','80'], costs: [['3','1','4'],['2','5','3']] });
+  const v = TI.validate(m); assert.equal(v.errors, 0); assert.ok(v.issues.some(i => i.code === 'balance' && /fuente ficticia/.test(i.message)));
+});
+t('14. problemario real U2: etiquetas S1/S2/S3 y demanda separada por salto de página', () => {
+  const fs = require('node:fs'); const path = require('node:path'); const text = fs.readFileSync(path.join(__dirname, 'fixtures/problemario_uni2_extracted.txt'), 'utf8');
+  const sections = text.split(/(?=^Problema\s+\d+\s*$)/m).filter(x => /^Problema\s+\d+/m.test(x));
+  const m = TI.interpret(sections[2]);
+  assert.deepStrictEqual(raw(m), { src: ['Servidor S1','Servidor S2','Servidor S3'], dst: ['A1','A2','A3'], supply: ['60','80','100'], demand: ['90','80','70'], costs: [['6','3','5'],['4','2','8'],['9','1','7']] });
+  assert.equal(TI.validate(m).errors, 0);
+  assert.deepStrictEqual(TI.validate(m).totals, { supply: 240, demand: 240, difference: 0 });
+});
+
+
+t('15. problemario U2 con geometría de texto de PDF: filas alineadas por coordenadas', () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const lines = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/problemario_uni2_geometry.json'), 'utf8'));
+  const starts = []; lines.forEach((line, i) => { const m = /^Problema\s+(\d+)/.exec(line.text); if (m) starts.push({ i, n: Number(m[1]) }); });
+  assert.equal(starts.length, 3);
+  const expected = [
+    { src:['DC1 (EE.UU. Este)','DC2 (EE.UU. Oeste)','DC3 (Europa)'], dst:['R1 (Norteamérica)','R2 (Sudamérica)','R3 (Europa Este)'], supply:['100','150','200'], demand:['150','120','180'], costs:[['4','7','8'],['3','5','9'],['8','6','2']] },
+    { src:['Servidor A','Servidor B'], dst:['Nodo Edge 1','Nodo Edge 2','Nodo Edge 3'], supply:['120','80'], demand:['70','100','80'], costs:[['3','1','4'],['2','5','3']] },
+    { src:['Servidor S1','Servidor S2','Servidor S3'], dst:['A1','A2','A3'], supply:['60','80','100'], demand:['90','80','70'], costs:[['6','3','5'],['4','2','8'],['9','1','7']] },
+  ];
+  starts.forEach((start, k) => {
+    const end = starts[k + 1]?.i ?? lines.length; const blockLines = lines.slice(start.i, end);
+    const m = TI.interpret({ title:blockLines[0].text, text:blockLines.map(x=>x.text).join('\n'), lines:blockLines });
+    assert.deepStrictEqual(raw(m), expected[k], `Problema ${start.n}`);
+    assert.equal(TI.validate(m).errors, 0, `Problema ${start.n}`);
+  });
+});
+
 console.log(`\n${pass}/${n} pruebas del intérprete OK`);

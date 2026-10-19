@@ -640,16 +640,38 @@
       .transport-print-table th{background:#f1f5f9}
       .transport-print-table td.is-assigned{background:#eaf5ff;font-weight:700}
       .transport-print-table td.is-forbidden{background:#fee2e2;color:#991b1b;font-weight:800}
+      .transport-print-snapshot{font-size:7.5pt;margin:8px 0 2px}
+      .transport-print-snapshot th,.transport-print-snapshot td{padding:4px 5px}
+      .transport-print-step h4{margin:10px 0 4px;font-size:9.5pt}
+      .transport-print-step{break-inside:avoid-page}
       .transport-print-section{margin-top:22px}
       .transport-print-step{border:1px solid #cbd5e1;border-radius:8px;padding:10px;margin:10px 0;break-inside:avoid}
       .transport-print-step h3{margin:0 0 6px;font-size:11pt}
       .transport-print-note{background:#f8fafc;border-left:3px solid #0f766e;padding:10px}
     `;
     const table = `<table class="transport-print-table"><thead><tr><th>Fuente / destino</th>${model.destinations.map(d => `<th>${esc(d.label)}${d.kind === 'dummy' ? '<br><small>Cliente ficticio</small>' : ''}</th>`).join('')}<th>Oferta</th></tr></thead><tbody>${model.sources.map((source, i) => `<tr><th>${esc(source.label)}${source.kind === 'dummy' ? '<br><small>Fuente ficticia</small>' : ''}</th>${model.destinations.map((d, j) => model.forbidden[i]?.[j] ? '<td class="is-forbidden">X<br><small>Ruta prohibida</small></td>' : `<td class="${solution.allocations[i][j] > EPS ? 'is-assigned' : ''}">${numText(solution.allocations[i][j])}<br><small>costo ${numText(source.costs[j])}</small></td>`).join('')}<td>${numText(source.supply)}</td></tr>`).join('')}<tr><th>Demanda ajustada</th>${model.demands.map(d => `<td>${numText(d)}</td>`).join('')}<td>${numText(model.adjustedSupply)}</td></tr></tbody></table>`;
+    // Crear una instantánea completa de la matriz después de cada asignación.
+    // La exportación anterior describía el paso, pero no mostraba la tabla resultante.
+    const allocationsByStep = model.sources.map(() => model.destinations.map(() => 0));
+    const remainingSupplyByStep = model.sources.map(source => source.supply);
+    const remainingDemandByStep = model.demands.slice();
+    let cumulativeCost = 0;
     const steps = solution.steps.map(step => {
+      allocationsByStep[step.sourceIndex][step.destinationIndex] += step.amount;
+      remainingSupplyByStep[step.sourceIndex] = step.supplyAfter;
+      remainingDemandByStep[step.destinationIndex] = step.demandAfter;
+      const stepCost = step.amount * step.cost;
+      cumulativeCost += stepCost;
       const tie = step.tieInfo ? `<p>Desempate ${step.tieInfo.mode === 'manual' ? 'elegido por el usuario' : 'automático'} entre ${step.tieInfo.count} rutas de costo ${numText(step.cost)}.</p>` : '';
       const selection = step.method === 'minimum-cost' ? `Seleccionar la ruta de menor costo disponible (${numText(step.cost)}): ${esc(step.sourceLabel)} → ${esc(step.destinationLabel)}.` : `Seleccionar la siguiente celda elegible en orden de Esquina Noroeste.`;
-      return `<article class="transport-print-step"><h3>Iteración ${step.number} · ${esc(step.sourceLabel)} → ${esc(step.destinationLabel)}</h3><p>${selection}</p><p>Asignar min(${numText(step.supplyBefore)}, ${numText(step.demandBefore)}) = <strong>${numText(step.amount)}</strong>.</p><p>Oferta: ${numText(step.supplyBefore)} − ${numText(step.amount)} = ${numText(step.supplyAfter)}. Demanda: ${numText(step.demandBefore)} − ${numText(step.amount)} = ${numText(step.demandAfter)}.</p>${tie}</article>`;
+      const snapshotRows = model.sources.map((source, i) => `<tr><th>${esc(source.label)}</th>${model.destinations.map((dest, j) => {
+        if (model.forbidden[i]?.[j]) return '<td class="is-forbidden">X</td>';
+        const amount = allocationsByStep[i][j];
+        return `<td class="${amount > EPS ? 'is-assigned' : ''}">${amount > EPS ? `<strong>${numText(amount)}</strong>` : '—'}<br><small>costo ${numText(source.costs[j])}</small></td>`;
+      }).join('')}<td><strong>${numText(remainingSupplyByStep[i])}</strong></td></tr>`).join('');
+      const snapshotDemand = `<tr><th>Demanda restante</th>${remainingDemandByStep.map(value => `<td><strong>${numText(value)}</strong></td>`).join('')}<td>—</td></tr>`;
+      const snapshot = `<table class="transport-print-table transport-print-snapshot"><thead><tr><th>Fuente / destino</th>${model.destinations.map(dest => `<th>${esc(dest.label)}</th>`).join('')}<th>Oferta restante</th></tr></thead><tbody>${snapshotRows}${snapshotDemand}</tbody></table>`;
+      return `<article class="transport-print-step"><h3>Iteración ${step.number} · ${esc(step.sourceLabel)} → ${esc(step.destinationLabel)}</h3><p>${selection}</p><p>Asignar min(${numText(step.supplyBefore)}, ${numText(step.demandBefore)}) = <strong>${numText(step.amount)}</strong>.</p><p>Oferta: ${numText(step.supplyBefore)} − ${numText(step.amount)} = ${numText(step.supplyAfter)}. Demanda: ${numText(step.demandBefore)} − ${numText(step.amount)} = ${numText(step.demandAfter)}.</p><p>Costo de esta asignación: ${numText(step.amount)} × ${numText(step.cost)} = <strong>${numText(stepCost)}</strong>. Costo acumulado: <strong>${numText(cumulativeCost)}</strong>.</p>${tie}<h4>Tabla después de la iteración ${step.number}</h4>${snapshot}</article>`;
     }).join('');
     const c = state.result.constraints;
     const formulation = `<section class="transport-print-section"><h2>Modelo matemático</h2><h3>Función objetivo</h3><p>${esc(c.objective)}</p><h3>Restricciones de oferta</h3><ul>${c.supplyConstraints.map(line => `<li>${esc(line)}</li>`).join('')}</ul><h3>Restricciones de demanda</h3><ul>${c.demandConstraints.map(line => `<li>${esc(line)}</li>`).join('')}</ul>${c.forbiddenConstraints.length ? `<h3>Rutas prohibidas</h3><ul>${c.forbiddenConstraints.map(line => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}<p>${esc(c.nonnegative)}</p></section>`;
@@ -658,7 +680,7 @@
       : model.shortage
         ? `La demanda supera a la oferta por ${numText(-model.difference)}. Se agregó una fuente ficticia: ${numText(model.supplyTotal)} + ${numText(-model.difference)} = ${numText(model.adjustedSupply)} = ${numText(model.adjustedDemand)}.`
         : `La oferta supera a la demanda por ${numText(model.difference)}. Se agregó un cliente ficticio: ${numText(model.demandTotal)} + ${numText(model.difference)} = ${numText(model.adjustedDemand)} = ${numText(model.adjustedSupply)}. Las asignaciones al cliente ficticio representan excedente no distribuido.`;
-    const content = `<header><p class="eyebrow">Investigación de Operaciones · IO Solver v8.0.0</p><h1>${esc(state.projectName || 'Ejercicio de transporte')}</h1><p class="transport-print-lead">Modelo de transporte · Método de ${methodLabel}</p><p>${esc(balance)}</p></header><section class="transport-print-section"><h2>Tabla de costos y balance</h2>${table}</section>${formulation}<section class="transport-print-section"><h2>Procedimiento</h2>${steps}</section><section class="transport-print-section"><h2>Costo de la solución inicial</h2><p><strong>Z = ${numText(solution.cost)}</strong></p><p class="transport-print-note">El método produce una solución inicial factible, no necesariamente óptima.</p></section>`;
+    const content = `<header><p class="eyebrow">Investigación de Operaciones · IO Solver v8.1.5</p><h1>${esc(state.projectName || 'Ejercicio de transporte')}</h1><p class="transport-print-lead">Modelo de transporte · Método de ${methodLabel}</p><p>${esc(balance)}</p></header><section class="transport-print-section"><h2>Tabla de costos y balance</h2>${table}</section>${formulation}<section class="transport-print-section"><h2>Procedimiento</h2>${steps}</section><section class="transport-print-section"><h2>Costo de la solución inicial</h2><p><strong>Z = ${numText(solution.cost)}</strong></p><p class="transport-print-note">El método produce una solución inicial factible, no necesariamente óptima.</p></section>`;
     try { window.IOSolverServices.print.open({ title: `IO Solver · ${state.projectName}`, content, styles: reportStyles }); }
     catch (error) { message(error.message || 'No se pudo abrir la vista de impresión.', 'error'); }
   }
